@@ -1,0 +1,14 @@
+{
+  "name": "@dither-dally/core",
+  "version": "0.0.0",
+  "description": "Dithering algorithms and pipeline for Dither Dally. Pure TypeScript, no DOM.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

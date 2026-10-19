@@ -1,0 +1,127 @@
+import type { ReactNode, SVGProps } from "react";
+
+type IconProps = SVGProps<SVGSVGElement> & { size?: number };
+
+function Icon({ size = 18, children, ...rest }: IconProps & { children: ReactNode }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      {...rest}
+    >
+      {children}
+    </svg>
+  );
+}
+
+export const SidebarLeftIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
+    <path d="M7.5 4v12M4.5 7h1M4.5 9.5h1" />
+  </Icon>
+);
+
+export const SidebarRightIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
+    <path d="M12.5 4v12M14.5 7h1M14.5 9.5h1" />
+  </Icon>
+);
+
+export const PhotoIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
+    <circle cx="7" cy="8" r="1.3" />
+    <path d="M3 14l4.2-3.8 3 2.6 2.8-2.3L17 13.6" />
+  </Icon>
+);
+
+export const SplitIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
+    <path d="M10 2.5v15" />
+    <path d="M10 4h5a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 15 16h-5z" fill="currentColor" stroke="none" opacity="0.35" />
+  </Icon>
+);
+
+export const SideBySideIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="2" y="5" width="7" height="10" rx="1.8" />
+    <rect x="11" y="5" width="7" height="10" rx="1.8" />
+  </Icon>
+);
+
+export const SquareIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3.5" y="4" width="13" height="12" rx="2.5" />
+  </Icon>
+);
+
+export const ShareIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10 2.8v9.4M6.8 5.8 10 2.8l3.2 3" />
+    <path d="M7 8.5H5.5a1.5 1.5 0 0 0-1.5 1.5v5.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V10a1.5 1.5 0 0 0-1.5-1.5H13" />
+  </Icon>
+);
+
+export const ExportIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10 3v9.5M6.8 9.5 10 12.7l3.2-3.2" />
+    <path d="M3.5 13.5v1.5A2 2 0 0 0 5.5 17h9a2 2 0 0 0 2-2v-1.5" />
+  </Icon>
+);
+
+export const ChevronIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M7.5 5l5 5-5 5" />
+  </Icon>
+);
+
+export const DiceIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3.5" y="3.5" width="13" height="13" rx="3" />
+    <circle cx="7.2" cy="7.2" r="0.6" fill="currentColor" />
+    <circle cx="12.8" cy="12.8" r="0.6" fill="currentColor" />
+    <circle cx="10" cy="10" r="0.6" fill="currentColor" />
+  </Icon>
+);
+
+export const MinusIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 10h10" />
+  </Icon>
+);
+
+export const PlusIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 10h10M10 5v10" />
+  </Icon>
+);
+
+export const LinkIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-.9.9" />
+    <path d="M11.5 8.5a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l.9-.9" />
+  </Icon>
+);
+
+export const DocIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5.5 2.8h6l3.5 3.5v9.4a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 4 15.7V4.3a1.5 1.5 0 0 1 1.5-1.5z" />
+    <path d="M11.5 2.8v3.5H15" />
+  </Icon>
+);
+
+export const FolderIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.8 6.2A1.7 1.7 0 0 1 4.5 4.5h3.3l1.7 1.7h6a1.7 1.7 0 0 1 1.7 1.7v6.4a1.7 1.7 0 0 1-1.7 1.7h-11a1.7 1.7 0 0 1-1.7-1.7z" />
+  </Icon>
+);

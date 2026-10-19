@@ -1,0 +1,56 @@
+# Dither Dally
+
+An open-source dithering studio for the browser. Drop in an image, pick an
+algorithm and a palette, tune it live, export.
+
+> Early development (Phase 1 of 4). See [docs/DESIGN.md](docs/DESIGN.md) for
+> the plan.
+
+- **Private:** your images never leave your device. Everything runs in the browser.
+- **Shareable:** the link always holds your current settings. Send it and
+  others get the exact look (on their own image). Save and load preset files too.
+- **Installable and offline:** install it as an app; it keeps working offline.
+- **Explicit colour:** choose sRGB or linear-light diffusion, and sRGB or
+  perceptual (OKLab) colour matching.
+
+## Algorithms so far
+
+| Family | Algorithms |
+|---|---|
+| Basic | Threshold, Nearest colour |
+| Error diffusion | Floyd–Steinberg, Atkinson, Burkes, Jarvis–Judice–Ninke, Stucki, Sierra, Two-row Sierra, Sierra Lite, Stevenson–Arce |
+| Ordered | Bayer (2×2 to 16×16), Blue noise (void-and-cluster), White noise |
+
+## Develop
+
+Requires Node.js 22.12 or newer.
+
+```sh
+npm install
+npm run dev        # start the web app at http://localhost:5173
+npm test           # run the core test suite
+npm run typecheck  # type-check every package
+npm run build      # production build of the web app
+npm run preview    # serve the production build (tests offline mode)
+node scripts/make-icons.mjs   # regenerate the app icons
+```
+
+Pushing to `main` on GitHub runs CI and deploys the app to GitHub Pages
+(enable Pages with "GitHub Actions" as the source in the repo settings).
+
+## Layout
+
+```
+packages/core   pure TypeScript algorithms, no DOM (runs in a worker or Node)
+apps/web        React + Vite app; runs core in a Web Worker
+docs/           design notes
+```
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md),
+especially the clean-room rules, before adding an algorithm.
+
+## License
+
+[MIT](LICENSE)

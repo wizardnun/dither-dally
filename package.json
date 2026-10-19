@@ -1,0 +1,27 @@
+{
+  "name": "dither-dally",
+  "private": true,
+  "description": "An open-source dithering studio for the browser.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @dither-dally/web",
+    "build": "npm run build -w @dither-dally/web",
+    "preview": "npm run preview -w @dither-dally/web",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
