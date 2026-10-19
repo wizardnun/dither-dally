@@ -1,7 +1,9 @@
 import { nearestColor, threshold } from "./basic.ts";
 import { hexagons, shapeGrid, triangles, voronoiCells } from "./cells.ts";
 import { KERNELS, diffusionAlgorithm } from "./diffusion.ts";
+import { slip, streak } from "./glitch.ts";
 import { cmykHalftone, halftone } from "./halftone.ts";
+import { contours, engraving, rings, spiral, waveLines } from "./lines.ts";
 import { bayer, blueNoise, whiteNoise } from "./ordered.ts";
 import { crosshatch } from "./pattern.ts";
 import { riemersma } from "./riemersma.ts";
@@ -17,11 +19,18 @@ export const ALGORITHMS: readonly AlgorithmDefinition[] = [
   whiteNoise,
   halftone,
   cmykHalftone,
+  waveLines,
+  rings,
+  spiral,
+  engraving,
   crosshatch,
+  contours,
   shapeGrid,
   voronoiCells,
   hexagons,
   triangles,
+  streak,
+  slip,
 ];
 
 export const FAMILY_LABELS: Record<Family, string> = {
@@ -29,8 +38,10 @@ export const FAMILY_LABELS: Record<Family, string> = {
   "error-diffusion": "Error diffusion",
   ordered: "Ordered",
   halftone: "Halftone",
+  lines: "Line screens",
   pattern: "Pattern",
   polygon: "Polygon",
+  glitch: "Glitch",
 };
 
 /** Whether the family reproduces tones (a flat grey comes out as a matching mix), as opposed to a stylised look. */

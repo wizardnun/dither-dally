@@ -1,6 +1,6 @@
 # Dither Dally — Design
 
-Status: Phase 3 complete · Last updated: 2026-10-19
+Status: Phase 4 complete · Last updated: 2026-10-19
 
 ## 1. What we're building
 
@@ -227,6 +227,9 @@ standard graphics method, our parameters · **original** = designed by us.
 | 2 ✓ | halftone | Halftone (round/diamond/square/line dots, any angle, any palette); CMYK halftone (classic angles, GCR) | technique |
 | 2 ✓ | pattern | Crosshatch, Shape grid (circle/square/diamond/heart), Voronoi cells | technique |
 | 2 ✓ | polygon | Hexagons, Triangles | technique |
+| 4 ✓ | lines | Wave lines, Rings, Spiral (line screens: rank = distance from the line centre, so coverage tracks tone); Engraving (a line screen displaced by the smoothed brightness) | original |
+| 4 ✓ | pattern | Contours (topographic iso-lines of smoothed brightness) | original |
+| 4 ✓ | glitch | Streak (error carried along rows or columns only), Slip (Floyd–Steinberg whose error is handed down with random sideways jolts) | original |
 | later | error diffusion | Ostromoukhov (variable coefficients) — needs the paper's 256-entry table from the primary source | published |
 | 4 | original | Line-diffusion glitch family, wave and contour fields | original |
 
@@ -293,6 +296,49 @@ See `CONTRIBUTING.md` for the contributor-facing version.
   the complexity isn't justified yet; revisit with video).
 - **Phase 3 ✓** Layer stack with 11 effects, preset version 2 (with v1
   migration), palette extraction, undo/redo, batch export.
+- **Phase 4 ✓** Seven original styles in two new families (Line screens,
+  Glitch) plus Contours; video: open, scrub, play and export MP4 with the
+  layer stack applied to every frame and the audio kept.
+
+### Phase 4 decisions
+
+- **Engraving is a displaced line screen.** The first version projected each
+  pixel onto a locally estimated edge direction (structure tensor). Because
+  the projection uses absolute coordinates, small direction changes far from
+  the origin swung the line phase wildly and curved areas turned to noise.
+  Displacing a straight screen by smoothed brightness keeps the line phase a
+  continuous function of position, so lines bend but never break up. A test
+  pins it: with no bend it is identical to an unwaved Wave lines screen.
+- **Video uses [mediabunny](https://github.com/Vanilagy/mediabunny)**
+  (MPL-2.0, pinned to 1.61.0) for demuxing, WebCodecs decode/encode and MP4
+  muxing. Its `Conversion` API with a `video.process` callback lets every
+  frame go through the same render worker as images while audio is copied
+  untouched. Writing a muxer ourselves wasn't worth the risk.
+- **Lazy loading.** The video module and library (~550 KB, ~138 KB gzip)
+  load only when a video is opened; the main bundle stays ~315 KB.
+- **Seeking without an index.** Files without a seek index (typical of
+  browser and screen recordings) return no frame from direct lookup. The
+  session then switches to reading sequentially from the requested time,
+  which mediabunny supports and which takes ~20–50 ms per seek on test clips.
+- **Preview playback** is paced in real time and drops late frames; it is
+  silent. Export processes every frame.
+- **Flicker.** Error-diffusion styles re-scatter their dots every frame,
+  which shimmers in video. The export sheet says so and suggests styles
+  whose pattern is tied to the pixel grid (ordered, halftone, line screens,
+  pattern, polygon), where still areas stay still.
+- **Same resolution rule as images.** Video frames are processed at the
+  preview size, then scaled by the pixel size; the output size is kept even
+  because H.264 requires it. The codec is the first one the browser can
+  encode that MP4 supports.
+
+### Testing video
+
+There is no unit test for the video path (it needs a browser with
+WebCodecs). It was verified end to end in headless Edge: a clip with audio
+recorded in the page by MediaRecorder was opened, scrubbed, played, exported
+to MP4 with Bayer applied, and the export re-opened as a valid video with
+its audio track. Not yet tested: Safari and Firefox, very long or high
+resolution videos, variable-frame-rate phone footage.
 
 ### Phase 3 decisions
 

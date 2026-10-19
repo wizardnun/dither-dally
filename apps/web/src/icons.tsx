@@ -170,6 +170,19 @@ export const RedoIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const PlayIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6.5 4.2v11.6a.6.6 0 0 0 .9.5l9-5.8a.6.6 0 0 0 0-1L7.4 3.7a.6.6 0 0 0-.9.5z" fill="currentColor" />
+  </Icon>
+);
+
+export const PauseIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="5" y="4" width="3.4" height="12" rx="1" fill="currentColor" stroke="none" />
+    <rect x="11.6" y="4" width="3.4" height="12" rx="1" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
 export const FolderIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M2.8 6.2A1.7 1.7 0 0 1 4.5 4.5h3.3l1.7 1.7h6a1.7 1.7 0 0 1 1.7 1.7v6.4a1.7 1.7 0 0 1-1.7 1.7h-11a1.7 1.7 0 0 1-1.7-1.7z" />

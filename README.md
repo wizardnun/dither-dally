@@ -3,9 +3,11 @@
 An open-source dithering studio for the browser. Drop in an image, pick an
 algorithm and a palette, tune it live, export.
 
-> Early development (Phase 3 of 4). See [docs/DESIGN.md](docs/DESIGN.md) for
-> the plan.
+> Early development: the four planned phases are done. See
+> [docs/DESIGN.md](docs/DESIGN.md) for the design and what's next.
 
+- **Video:** open an MP4 or WebM, scrub and play it with your look applied,
+  and export a dithered MP4 that keeps the original sound.
 - **Layers:** stack effects before the dither (to shape the image) and after
   it (to treat the result): adjust, blur, sharpen, grain, tint, bloom,
   vignette, chromatic split, scanlines and more. Full undo and redo.
@@ -27,8 +29,10 @@ algorithm and a palette, tune it live, export.
 | Error diffusion | Floyd–Steinberg, Atkinson, Burkes, Jarvis–Judice–Ninke, Stucki, Sierra, Two-row Sierra, Sierra Lite, Stevenson–Arce, Riemersma |
 | Ordered | Bayer (2×2 to 16×16), Blue noise (void-and-cluster), White noise |
 | Halftone | Halftone (round, diamond, square or line dots), CMYK halftone |
-| Pattern | Crosshatch, Shape grid, Voronoi cells |
+| Line screens | Wave lines, Rings, Spiral, Engraving |
+| Pattern | Crosshatch, Contours, Shape grid, Voronoi cells |
 | Polygon | Hexagons, Triangles |
+| Glitch | Streak, Slip |
 
 ## Develop
 
@@ -62,4 +66,12 @@ especially the clean-room rules, before adding an algorithm.
 
 ## License
 
-[MIT](LICENSE)
+Dither Dally is [MIT](LICENSE) licensed.
+
+It uses these libraries, under their own licences:
+
+- [React](https://react.dev) (MIT)
+- [mediabunny](https://github.com/Vanilagy/mediabunny) (MPL-2.0), for video
+  decoding, encoding and MP4 files. Used unmodified; its source is available
+  from the project's repository.
+- [Inter](https://rsms.me/inter/) via Fontsource (SIL Open Font License 1.1)

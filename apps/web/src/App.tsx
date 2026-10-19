@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import {
   PresetError,
   customPalette,
@@ -29,7 +29,17 @@ import { Toolbar } from "./Toolbar.tsx";
 import { useRender } from "./useDither.ts";
 import { useHistory } from "./useHistory.ts";
 import { useThumbnails } from "./useThumbnails.ts";
+import { formatTime } from "./time.ts";
+import type { VideoSession } from "./video.ts";
+import { VideoTimeline } from "./VideoTimeline.tsx";
+
+// Video support (and its media library) loads only when a video is opened.
+const VideoExportSheet = lazy(() => import("./VideoExportSheet.tsx"));
+const loadVideo = () => import("./video.ts");
 import { Viewer, type CompareMode } from "./Viewer.tsx";
+
+const VIDEO_FILE = /\.(mp4|m4v|mov|webm|mkv|ogv)$/i;
+const isVideoFile = (f: File) => f.type.startsWith("video/") || VIDEO_FILE.test(f.name);
 
 type Source = CanvasImageSource & { width: number; height: number };
 
@@ -54,6 +64,13 @@ export function App() {
   const [showInspector, setShowInspector] = useState(WIDE);
   const [dragging, setDragging] = useState(false);
   const [batchFiles, setBatchFiles] = useState<File[] | null>(null);
+  const [video, setVideo] = useState<VideoSession | null>(null);
+  const [videoTime, setVideoTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [videoExportOpen, setVideoExportOpen] = useState(false);
+  const playback = useRef<AbortController | null>(null);
+  /** Increments per seek, so a slow frame fetch can't overwrite a newer one. */
+  const seekToken = useRef(0);
   const [notice, setNotice] = useState<{ text: string; error?: boolean; id: number } | null>(
     start.notice ? { text: start.notice, id: 0 } : null,
   );
@@ -168,12 +185,66 @@ export function App() {
 
   async function openFile(file: File | undefined) {
     if (!file) return;
+    stopPlayback();
+    if (isVideoFile(file)) {
+      try {
+        const { VideoSession } = await loadVideo();
+        const session = await VideoSession.open(file);
+        const first = await session.frameAt(session.info.start);
+        if (!first) throw new Error(`"${file.name}" has no frames that can be shown.`);
+        video?.dispose();
+        setVideo(session);
+        setVideoTime(session.info.start);
+        setOriginal(first);
+        setFileName(file.name.replace(/\.[^.]+$/, ""));
+      } catch (err) {
+        say(err instanceof Error ? err.message : `Couldn't open "${file.name}".`, true);
+      }
+      return;
+    }
     try {
       setOriginal(await loadImageFile(file));
       setFileName(file.name.replace(/\.[^.]+$/, ""));
+      video?.dispose();
+      setVideo(null);
     } catch {
-      say(`Couldn't open "${file.name}". Try a PNG, JPEG, GIF or WebP image.`, true);
+      say(`Couldn't open "${file.name}". Try a PNG, JPEG, GIF or WebP image, or an MP4 or WebM video.`, true);
     }
+  }
+
+  // ----- video -----
+
+  function stopPlayback() {
+    playback.current?.abort();
+    playback.current = null;
+    setPlaying(false);
+  }
+
+  async function seek(t: number) {
+    if (!video) return;
+    stopPlayback();
+    setVideoTime(t);
+    const token = ++seekToken.current;
+    const frame = await video.frameAt(t);
+    if (frame && token === seekToken.current) setOriginal(frame);
+  }
+
+  function play() {
+    if (!video) return;
+    stopPlayback();
+    const controller = new AbortController();
+    playback.current = controller;
+    setPlaying(true);
+    // From the start again if we're at the end.
+    const from = videoTime >= video.info.duration - 0.05 ? video.info.start : videoTime;
+    void video
+      .play(from, controller.signal, (frame, t) => {
+        setOriginal(frame);
+        setVideoTime(t);
+      })
+      .finally(() => {
+        if (playback.current === controller) stopPlayback();
+      });
   }
 
   async function openPresetFile(file: File | undefined) {
@@ -202,17 +273,28 @@ export function App() {
 
   // ----- keyboard -----
 
-  const latest = useRef({ exportImage, undo: history.undo, redo: history.redo });
-  latest.current = { exportImage, undo: history.undo, redo: history.redo };
+  const latest = useRef({ exportImage, undo: history.undo, redo: history.redo, togglePlay: () => {} });
+  latest.current = {
+    exportImage,
+    undo: history.undo,
+    redo: history.redo,
+    togglePlay: () => (video ? (playing ? stopPlayback() : play()) : undefined),
+  };
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
       if (file) void openFile(file);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
       const t = e.target as HTMLElement;
       const typing = t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && !["range", "checkbox", "color"].includes((t as HTMLInputElement).type));
+      // Space plays/pauses video, unless it would press a focused control instead.
+      if (e.key === " " && !e.ctrlKey && !e.metaKey && !typing && !["BUTTON", "INPUT", "SELECT"].includes(t.tagName)) {
+        e.preventDefault();
+        latest.current.togglePlay();
+        return;
+      }
+      if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();
       if (key === "o") {
         e.preventDefault();
@@ -281,7 +363,7 @@ export function App() {
     >
       <Toolbar
         title={fileName}
-        subtitle={`${source.width * doc.pixelSize} × ${source.height * doc.pixelSize} · ${getAlgorithm(dither.algorithm).name}${effects ? ` + ${effects} effect${effects > 1 ? "s" : ""}` : ""}`}
+        subtitle={`${video ? `Video ${formatTime(video.info.duration - video.info.start)} · ` : ""}${source.width * doc.pixelSize} × ${source.height * doc.pixelSize} · ${getAlgorithm(dither.algorithm).name}${effects ? ` + ${effects} effect${effects > 1 ? "s" : ""}` : ""}`}
         showLayers={showLayers}
         onToggleLayers={() => setShowLayers((s) => !s)}
         galleryOpen={galleryOpen}
@@ -294,6 +376,11 @@ export function App() {
         onShare={() => void copyLink()}
         onExport={exportImage}
         onBatch={() => batchInput.current?.click()}
+        onExportVideo={() => {
+          stopPlayback();
+          setVideoExportOpen(true);
+        }}
+        isVideo={video !== null}
         canExport={!!result.image}
         onUndo={history.undo}
         onRedo={history.redo}
@@ -303,6 +390,35 @@ export function App() {
 
       <div className="workspace">
         <Viewer original={source} result={result.image} pixelSize={doc.pixelSize} mode={mode} insets={insets} status={status} />
+
+        {video && (
+          <VideoTimeline
+            start={video.info.start}
+            duration={video.info.duration}
+            time={videoTime}
+            playing={playing}
+            onPlay={play}
+            onPause={stopPlayback}
+            onSeek={(t) => void seek(t)}
+            insets={insets}
+          />
+        )}
+
+        {video && videoExportOpen && (
+          <Suspense fallback={null}>
+            <VideoExportSheet
+              file={video.file}
+              info={video.info}
+              job={{ layers: doc.layers, palette, seed: doc.seed, color: doc.color, pixelSize: doc.pixelSize }}
+              name={`${fileName}-${dither.algorithm}`}
+              onClose={() => setVideoExportOpen(false)}
+              onDone={(message, error) => {
+                setVideoExportOpen(false);
+                say(message, error);
+              }}
+            />
+          </Suspense>
+        )}
 
         {showLayers && (
           <aside className="panel layers-panel" aria-label="Layers">
@@ -382,7 +498,7 @@ export function App() {
 
         {dragging && (
           <div className="drop-overlay" aria-hidden="true">
-            <div className="drop-card">Drop an image or a preset</div>
+            <div className="drop-card">Drop an image, a video or a preset</div>
           </div>
         )}
 
@@ -399,7 +515,13 @@ export function App() {
         )}
       </div>
 
-      <input ref={imageInput} type="file" accept="image/*" hidden onChange={(e) => (void openFile(e.target.files?.[0]), (e.target.value = ""))} />
+      <input
+        ref={imageInput}
+        type="file"
+        accept="image/*,video/*"
+        hidden
+        onChange={(e) => (void openFile(e.target.files?.[0]), (e.target.value = ""))}
+      />
       <input
         ref={presetInput}
         type="file"

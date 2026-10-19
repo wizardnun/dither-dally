@@ -30,6 +30,8 @@ interface Props {
   onShare: () => void;
   onExport: () => void;
   onBatch: () => void;
+  onExportVideo: () => void;
+  isVideo: boolean;
   canExport: boolean;
   onUndo: () => void;
   onRedo: () => void;
@@ -86,7 +88,7 @@ export function Toolbar(p: Props) {
         <button type="button" className="tool" aria-label="Copy link to these settings" title="Copy link to these settings" onClick={p.onShare}>
           <ShareIcon />
         </button>
-        <ExportMenu onExport={p.onExport} onBatch={p.onBatch} canExport={p.canExport} />
+        <ExportMenu onExport={p.onExport} onBatch={p.onBatch} onExportVideo={p.onExportVideo} isVideo={p.isVideo} canExport={p.canExport} />
         <button
           type="button"
           className="tool"
@@ -102,7 +104,15 @@ export function Toolbar(p: Props) {
   );
 }
 
-function ExportMenu({ onExport, onBatch, canExport }: { onExport: () => void; onBatch: () => void; canExport: boolean }) {
+interface ExportMenuProps {
+  onExport: () => void;
+  onBatch: () => void;
+  onExportVideo: () => void;
+  isVideo: boolean;
+  canExport: boolean;
+}
+
+function ExportMenu({ onExport, onBatch, onExportVideo, isVideo, canExport }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -123,6 +133,20 @@ function ExportMenu({ onExport, onBatch, canExport }: { onExport: () => void; on
       </button>
       {open && (
         <div className="menu right" role="menu">
+          {isVideo && (
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={() => {
+                setOpen(false);
+                onExportVideo();
+              }}
+            >
+              <span className="menu-name">Export video…</span>
+              <span className="menu-desc">Process every frame and save an MP4, keeping the sound.</span>
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
@@ -133,8 +157,8 @@ function ExportMenu({ onExport, onBatch, canExport }: { onExport: () => void; on
               onExport();
             }}
           >
-            <span className="menu-name">Export PNG</span>
-            <span className="menu-desc">Save this image as you see it. Ctrl E</span>
+            <span className="menu-name">{isVideo ? "Export frame as PNG" : "Export PNG"}</span>
+            <span className="menu-desc">{isVideo ? "Save the frame you're looking at." : "Save this image as you see it."} Ctrl E</span>
           </button>
           <button
             type="button"
