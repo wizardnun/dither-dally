@@ -7,6 +7,7 @@ import { contours, engraving, rings, spiral, waveLines } from "./lines.ts";
 import { bayer, blueNoise, whiteNoise } from "./ordered.ts";
 import { crosshatch } from "./pattern.ts";
 import { riemersma } from "./riemersma.ts";
+import { ascii, braille } from "./text.ts";
 import type { AlgorithmDefinition, Family, Params } from "./types.ts";
 
 export const ALGORITHMS: readonly AlgorithmDefinition[] = [
@@ -31,6 +32,8 @@ export const ALGORITHMS: readonly AlgorithmDefinition[] = [
   triangles,
   streak,
   slip,
+  ascii,
+  braille,
 ];
 
 export const FAMILY_LABELS: Record<Family, string> = {
@@ -42,6 +45,7 @@ export const FAMILY_LABELS: Record<Family, string> = {
   pattern: "Pattern",
   polygon: "Polygon",
   glitch: "Glitch",
+  text: "Text",
 };
 
 /** Whether the family reproduces tones (a flat grey comes out as a matching mix), as opposed to a stylised look. */

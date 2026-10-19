@@ -20,11 +20,12 @@ describe.each(ALGORITHMS.map((a) => [a.id, a] as const))("%s", (_id, algo) => {
     expect(usesOnlyPalette(out, palette.colors)).toBe(true);
   });
 
-  it("keeps size and alpha", () => {
+  it("keeps size and alpha (text styles draw an opaque page)", () => {
     const input = testImage();
     const out = algo.run(input, getPalette("mono").colors, params, ctx);
     expect([out.width, out.height]).toEqual([input.width, input.height]);
-    for (let i = 3; i < input.data.length; i += 4) expect(out.data[i]).toBe(input.data[i]);
+    const opaque = algo.family === "text";
+    for (let i = 3; i < input.data.length; i += 4) expect(out.data[i]).toBe(opaque ? 255 : input.data[i]);
   });
 
   it("is deterministic", () => {

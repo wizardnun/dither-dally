@@ -331,6 +331,37 @@ See `CONTRIBUTING.md` for the contributor-facing version.
   because H.264 requires it. The codec is the first one the browser can
   encode that MP4 supports.
 
+### Text art (after Phase 4)
+
+A **Text** family turns images into real characters (`text.ts`, `font.ts`):
+
+- **ASCII**: the image is split into character cells sized for monospace
+  fonts (width ∶ height = 0.6, so pasted text keeps its proportions). Each
+  cell is sampled at the glyph's 6×8 resolution and the character chosen by
+  - *Tone*: glyph ink coverage closest to the cell's brightness, mapped onto
+    the coverage range of the chosen set; or
+  - *Shape* (default): tone plus a correlation term between the cell's
+    zero-mean pattern and each glyph's, so edges pick matching strokes
+    (`|` `-` `/` …). Correlation is zero on flat cells, so flat areas are
+    decided by tone alone; an earlier squared-difference version biased flat
+    areas toward low-variance glyphs and was replaced (tests pin it).
+  Character sets: Classic, Detailed (every glyph), Simple, Blocks (░▒▓█),
+  Binary, or a custom string (characters the font can't draw are skipped).
+- **Braille**: each cell is a 2×4 Unicode Braille dot grid, Floyd–Steinberg
+  (or threshold) at dot resolution — 8 dots per character.
+- **Colour modes**: dark on light, light on dark, or per-character palette
+  colour on the darkest palette colour.
+- **Font**: our own 5×7 pixel font drawn for the project (about 60 glyphs)
+  plus generated shading blocks, so rendering is identical everywhere and the
+  core stays DOM-free.
+- **Real text out**: Copy as text, Save .txt, and Save HTML (a standalone
+  page; coloured runs merged into spans; content escaped). The text is built
+  from exactly the image the preview feeds into the dither layer
+  (`runUntilDither`), so it matches what you see.
+- **Legibility**: glyphs need ≥ 6 px per character to draw cleanly in the
+  picture. When a setting goes below that, the inspector says so with the
+  exact limit; the exported text is unaffected.
+
 ### Testing video
 
 There is no unit test for the video path (it needs a browser with

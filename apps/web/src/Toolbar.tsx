@@ -37,6 +37,8 @@ interface Props {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  /** Set when the style produces text, adding text export to the menu. */
+  onTextAction?: (action: "copy" | "txt" | "html") => void;
 }
 
 export function Toolbar(p: Props) {
@@ -88,7 +90,14 @@ export function Toolbar(p: Props) {
         <button type="button" className="tool" aria-label="Copy link to these settings" title="Copy link to these settings" onClick={p.onShare}>
           <ShareIcon />
         </button>
-        <ExportMenu onExport={p.onExport} onBatch={p.onBatch} onExportVideo={p.onExportVideo} isVideo={p.isVideo} canExport={p.canExport} />
+        <ExportMenu
+          onExport={p.onExport}
+          onBatch={p.onBatch}
+          onExportVideo={p.onExportVideo}
+          onTextAction={p.onTextAction}
+          isVideo={p.isVideo}
+          canExport={p.canExport}
+        />
         <button
           type="button"
           className="tool"
@@ -108,11 +117,12 @@ interface ExportMenuProps {
   onExport: () => void;
   onBatch: () => void;
   onExportVideo: () => void;
+  onTextAction?: (action: "copy" | "txt" | "html") => void;
   isVideo: boolean;
   canExport: boolean;
 }
 
-function ExportMenu({ onExport, onBatch, onExportVideo, isVideo, canExport }: ExportMenuProps) {
+function ExportMenu({ onExport, onBatch, onExportVideo, onTextAction, isVideo, canExport }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -133,6 +143,28 @@ function ExportMenu({ onExport, onBatch, onExportVideo, isVideo, canExport }: Ex
       </button>
       {open && (
         <div className="menu right" role="menu">
+          {onTextAction &&
+            (
+              [
+                ["copy", "Copy as text", "Paste it anywhere that uses a monospace font."],
+                ["txt", "Save as .txt", "Plain text file."],
+                ["html", "Save as HTML", "A web page that keeps the colours."],
+              ] as const
+            ).map(([action, name, desc]) => (
+              <button
+                key={action}
+                type="button"
+                role="menuitem"
+                className="menu-item"
+                onClick={() => {
+                  setOpen(false);
+                  onTextAction(action);
+                }}
+              >
+                <span className="menu-name">{name}</span>
+                <span className="menu-desc">{desc}</span>
+              </button>
+            ))}
           {isVideo && (
             <button
               type="button"

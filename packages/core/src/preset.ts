@@ -230,6 +230,12 @@ export function sanitizeParams(def: { controls: readonly Control[] }, raw: unkno
         if (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v)) params[control.id] = v.toLowerCase();
         else warnings.push(`Invalid colour for "${control.label}"; using ${control.default}.`);
         break;
+      case "text":
+        if (typeof v === "string") {
+          if ([...v].length > control.maxLength) warnings.push(`"${control.label}" was too long and was shortened.`);
+          params[control.id] = [...v].slice(0, control.maxLength).join("");
+        } else warnings.push(`Invalid text for "${control.label}"; using the default.`);
+        break;
     }
   }
   for (const key of Object.keys(raw)) {

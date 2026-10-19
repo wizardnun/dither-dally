@@ -12,6 +12,10 @@ import {
   moveLayer,
   removeLayer,
   resolvePalette,
+  runUntilDither,
+  textArtFor,
+  toHtml,
+  toPlainText,
   type ColorSettings,
   type Layer,
   type PaletteRef,
@@ -22,7 +26,7 @@ import {
 import { BatchSheet } from "./BatchSheet.tsx";
 import { Gallery } from "./Gallery.tsx";
 import { exportPng, loadImageFile, sampleImage, thumbnailData, toImageData } from "./image.ts";
-import { Inspector } from "./Inspector.tsx";
+import { Inspector, type TextAction } from "./Inspector.tsx";
 import { LayersPanel, layerTitle } from "./LayersPanel.tsx";
 import { downloadPreset, hashForPreset, initialPreset, noticeFor, presetFromFile, presetFromHash } from "./presetLink.ts";
 import { Toolbar } from "./Toolbar.tsx";
@@ -267,6 +271,35 @@ export function App() {
     }
   }
 
+  /** The current text art, built from exactly the image the preview shows going into the dither. */
+  function currentTextArt() {
+    const input = runUntilDither(source, { layers: doc.layers, palette, seed: doc.seed, color: doc.color });
+    return textArtFor(dither.algorithm, input, palette, dither.params, doc.color);
+  }
+
+  async function textAction(action: TextAction) {
+    const art = currentTextArt();
+    if (!art) return;
+    const base = `${fileName}-${dither.algorithm}`;
+    if (action === "copy") {
+      try {
+        await navigator.clipboard.writeText(toPlainText(art));
+        say(`Copied ${art.cols} × ${art.rows} characters. Paste into anything with a monospace font.`);
+      } catch {
+        say("Couldn't copy automatically. Use Save as .txt instead.", true);
+      }
+      return;
+    }
+    const [content, type, ext] =
+      action === "txt" ? [toPlainText(art), "text/plain;charset=utf-8", "txt"] : [toHtml(art, base), "text/html;charset=utf-8", "html"];
+    const url = URL.createObjectURL(new Blob([content], { type }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${base}.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
   function exportImage() {
     if (result.image && !previewStyle) exportPng(result.image, doc.pixelSize, `${fileName}-${dither.algorithm}.png`);
   }
@@ -382,6 +415,7 @@ export function App() {
         }}
         isVideo={video !== null}
         canExport={!!result.image}
+        onTextAction={getAlgorithm(dither.algorithm).family === "text" ? (a) => void textAction(a) : undefined}
         onUndo={history.undo}
         onRedo={history.redo}
         canUndo={history.canUndo}
@@ -456,6 +490,8 @@ export function App() {
           <aside className="panel inspector" aria-label="Inspector">
             <Inspector
               layer={selected}
+              workingWidth={source.width}
+              onTextAction={(a) => void textAction(a)}
               thumbnail={thumbnails[dither.algorithm] ?? null}
               onOpenStyles={() => setGalleryOpen(true)}
               onParam={setParam}

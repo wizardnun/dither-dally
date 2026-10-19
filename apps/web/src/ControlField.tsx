@@ -28,6 +28,21 @@ export function ControlField({ control, value, onChange }: Props) {
       return (
         <SwitchRow id={id} label={control.label} help={control.help} checked={Boolean(value ?? control.default)} onChange={onChange} />
       );
+    case "text":
+      return (
+        <div className="field-stack">
+          <label htmlFor={id}>{control.label}</label>
+          <input
+            id={id}
+            className="text-field mono"
+            value={String(value ?? control.default)}
+            maxLength={control.maxLength}
+            spellCheck={false}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          {control.help && <p className="hint">{control.help}</p>}
+        </div>
+      );
     case "color": {
       const hex = String(value ?? control.default);
       return (

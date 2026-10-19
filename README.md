@@ -8,6 +8,9 @@ algorithm and a palette, tune it live, export.
 
 - **Video:** open an MP4 or WebM, scrub and play it with your look applied,
   and export a dithered MP4 that keeps the original sound.
+- **ASCII and Braille art:** turn any image into real text, with characters
+  chosen to match both brightness and shape. Copy it, or save it as .txt or
+  as a coloured HTML page.
 - **Layers:** stack effects before the dither (to shape the image) and after
   it (to treat the result): adjust, blur, sharpen, grain, tint, bloom,
   vignette, chromatic split, scanlines and more. Full undo and redo.
@@ -33,6 +36,7 @@ algorithm and a palette, tune it live, export.
 | Pattern | Crosshatch, Contours, Shape grid, Voronoi cells |
 | Polygon | Hexagons, Triangles |
 | Glitch | Streak, Slip |
+| Text | ASCII (shape-matched, six character sets or your own), Braille |
 
 ## Develop
 

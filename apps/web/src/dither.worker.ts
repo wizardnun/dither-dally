@@ -1,4 +1,5 @@
 import { runPipeline } from "@dither-dally/core";
+import { createGlyphRasterizer } from "./glyphRaster.ts";
 import type { RenderRequest, RenderResponse } from "./protocol.ts";
 
 // Typed narrowly so this file doesn't need the WebWorker lib (which clashes with DOM).
@@ -7,12 +8,15 @@ const scope = self as unknown as {
   postMessage(message: RenderResponse, transfer: Transferable[]): void;
 };
 
+/** Text styles draw their characters in the system monospace font. */
+const glyphs = createGlyphRasterizer();
+
 scope.onmessage = (e) => {
   const req = e.data;
   try {
     const t0 = performance.now();
     const input = { width: req.width, height: req.height, data: new Uint8ClampedArray(req.buffer) };
-    const out = runPipeline(input, { layers: req.layers, palette: req.palette, seed: req.seed, color: req.color });
+    const out = runPipeline(input, { layers: req.layers, palette: req.palette, seed: req.seed, color: req.color, glyphs });
     const ms = performance.now() - t0;
     // The pipeline may return its input unchanged (every layer disabled); copy so we can transfer.
     const data = out.data === input.data ? out.data.slice() : out.data;

@@ -12,7 +12,7 @@ export type RGB = readonly [r: number, g: number, b: number];
 /** Ordered list of output colours. Algorithms only ever emit these. */
 export type Palette = readonly RGB[];
 
-export type Family = "basic" | "error-diffusion" | "ordered" | "halftone" | "lines" | "pattern" | "polygon" | "glitch";
+export type Family = "basic" | "error-diffusion" | "ordered" | "halftone" | "lines" | "pattern" | "polygon" | "glitch" | "text";
 
 export interface Reference {
   author: string;
@@ -52,16 +52,31 @@ export interface ColorControl extends ControlBase {
   default: string;
 }
 
-export type Control = SliderControl | ToggleControl | SelectControl | ColorControl;
+export interface TextControl extends ControlBase {
+  kind: "text";
+  maxLength: number;
+  default: string;
+}
+
+export type Control = SliderControl | ToggleControl | SelectControl | ColorControl | TextControl;
 
 export type ParamValue = number | boolean | string;
 export type Params = Record<string, ParamValue>;
+
+/**
+ * Draws one character as an ink mask (1 = ink) of exactly `width × height`
+ * pixels, or returns null if it can't. Lets a host draw text styles with a
+ * real font; core falls back to its built-in pixel font without one.
+ */
+export type GlyphRasterizer = (ch: string, width: number, height: number) => Uint8Array | null;
 
 export interface RunContext {
   /** Seed for anything random. Same seed, same output. */
   seed: number;
   /** Diffusion space and matching metric. */
   color: ColorSettings;
+  /** Optional real-font drawing for text styles. */
+  glyphs?: GlyphRasterizer;
 }
 
 export type EffectCategory = "adjust" | "light" | "glitch";

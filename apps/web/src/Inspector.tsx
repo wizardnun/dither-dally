@@ -4,6 +4,8 @@ import {
   PIXEL_SIZE_RANGE,
   getAlgorithm,
   getEffect,
+  glyph,
+  usableChars,
   type ColorSettings,
   type Layer,
   type PaletteRef,
@@ -15,8 +17,13 @@ import { ChevronIcon, DiceIcon, DocIcon, FolderIcon, LinkIcon } from "./icons.ts
 import { PalettePicker } from "./PalettePicker.tsx";
 import { Row, Section, Segmented, SliderRow } from "./ui.tsx";
 
+export type TextAction = "copy" | "txt" | "html";
+
 interface Props {
   layer: Layer;
+  /** Width of the working image, for warning when characters would be too small to read. */
+  workingWidth: number;
+  onTextAction: (action: TextAction) => void;
   thumbnail: ImageData | null;
   onOpenStyles: () => void;
   onParam: (layerId: string, key: string, value: Params[string]) => void;
@@ -129,6 +136,8 @@ function DitherSections(p: Props & { layer: Extract<Layer, { kind: "dither" }> }
         <ResetButton onClick={() => p.onResetLayer(p.layer.id)} />
       </Section>
 
+      {algorithm.family === "text" && <TextSection {...p} layer={p.layer} />}
+
       <Section title="Palette">
         <PalettePicker value={p.palette} onChange={p.onPalette} onExtract={p.onExtract} />
       </Section>
@@ -182,6 +191,54 @@ function EffectSections(p: Props & { layer: Extract<Layer, { kind: "effect" }> }
         {effect.controls.length > 0 && <ResetButton onClick={() => p.onResetLayer(p.layer.id)} />}
       </Section>
     </>
+  );
+}
+
+/** Glyphs are 6 px wide; below that, characters can't be drawn legibly in the image. */
+const MIN_CHAR_PX = 6;
+
+function TextSection(p: Props & { layer: Extract<Layer, { kind: "dither" }> }) {
+  const cols = Number(p.layer.params.columns ?? 100);
+  const charPx = p.workingWidth / cols;
+  const maxCols = Math.floor(p.workingWidth / MIN_CHAR_PX);
+  // Say exactly what happens to custom characters the built-in font can't draw.
+  const custom = p.layer.params.charset === "custom" ? String(p.layer.params.custom ?? "") : null;
+  const skipped = custom === null ? [] : [...new Set([...custom])].filter((c) => !glyph(c));
+  const usable = custom === null ? 0 : usableChars(custom).length;
+  return (
+    <Section title="Text">
+      {custom !== null && usable < 2 && (
+        <p className="hint warn">
+          {usable === 0 ? "None of your custom characters" : "Only one of your custom characters"} can be drawn
+          {skipped.length ? ` (${skipped.map((c) => (c === " " ? "space" : c)).join(" ")} aren't in the font)` : ""}, so Classic is being
+          used instead. Custom needs at least two drawable characters, for example “ .:oO@”.
+        </p>
+      )}
+      {custom !== null && usable >= 2 && skipped.length > 0 && (
+        <p className="hint warn">Skipped characters the font can't draw: {skipped.join(" ")}</p>
+      )}
+      <div className="button-row">
+        <button type="button" className="push" onClick={() => p.onTextAction("copy")}>
+          Copy text
+        </button>
+        <button type="button" className="push" onClick={() => p.onTextAction("txt")}>
+          Save .txt
+        </button>
+        <button type="button" className="push" onClick={() => p.onTextAction("html")}>
+          Save HTML
+        </button>
+      </div>
+      {charPx < MIN_CHAR_PX ? (
+        <p className="hint warn">
+          Each character is only {charPx.toFixed(1)} px wide here, so they'll look smudged in the picture (the text you copy is
+          unaffected). For crisp characters use at most {maxCols} across{p.pixelSize > 1 ? ", or set Pixel size to 1" : ""}.
+        </p>
+      ) : (
+        <p className="hint">
+          {cols} characters across. Paste into anything with a monospace font; HTML keeps the colours.
+        </p>
+      )}
+    </Section>
   );
 }
 

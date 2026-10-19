@@ -753,6 +753,23 @@ canvas.overlay {
   color: var(--secondary);
 }
 
+.hint.warn {
+  color: var(--label);
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #ff9f0a 16%, transparent);
+}
+
+.field-stack {
+  display: grid;
+  gap: 4px;
+}
+
+.field-stack > label {
+  font-size: 12px;
+  color: var(--secondary);
+}
+
 /* slider */
 .slider {
   -webkit-appearance: none;

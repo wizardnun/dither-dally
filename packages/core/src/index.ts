@@ -7,6 +7,7 @@ export type {
   EffectDefinition,
   EffectLayer,
   Family,
+  GlyphRasterizer,
   Layer,
   Palette,
   ParamValue,
@@ -17,6 +18,7 @@ export type {
   RunContext,
   SelectControl,
   SliderControl,
+  TextControl,
   ToggleControl,
 } from "./types.ts";
 export { createBuffer, nearestIndex, paletteFromHex, paletteSpread, parseHex, toHex } from "./color.ts";
@@ -41,7 +43,21 @@ export { inShape, type GridShape } from "./cells.ts";
 export { hilbertPoint } from "./riemersma.ts";
 export { EFFECTS, EFFECT_CATEGORY_LABELS, gaussianBlur, getEffect } from "./effects.ts";
 export { extractPalette } from "./extract.ts";
-export { runPipeline, type PipelineSettings } from "./pipeline.ts";
+export { runPipeline, runUntilDither, type PipelineSettings } from "./pipeline.ts";
+export { CELL_H, CELL_W, FONT_CHARS, coverage, glyph, type Glyph } from "./font.ts";
+export {
+  CHARSETS,
+  CHAR_ASPECT,
+  makeAsciiArt,
+  makeBrailleArt,
+  renderTextArt,
+  textArtFor,
+  toHtml,
+  toPlainText,
+  usableChars,
+  type TextArt,
+  type TextColorMode,
+} from "./text.ts";
 export { insertLayerAfter, moveLayer, removeLayer } from "./layers.ts";
 export {
   CUSTOM_PALETTE_SIZE,

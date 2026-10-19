@@ -1,0 +1,35 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden text art (readable snapshots) > ASCII, shape matching 1`] = `
+"
+
+                   \\_
+      __xcccc_     u@
+    _cuuaaaauuc_   u@
+    xuaammmmmewc_  u@
+   _]aam****mme[|  u@
+   "]t99*****&%[<  u@
+    ?7499555947r\`  u@
+    ^?77999977?"   u@
+      "^?777+^\`    u@
+                   /9
+
+"
+`;
+
+exports[`golden text art (readable snapshots) > Braille, diffused 1`] = `
+"
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⢀⢄⢆⢖⢲⢰⢄⠄⠀⠀⠀⠀⠀⢨⣿⠀⠀⠀
+⠀⠀⠀⠀⠀⡔⣕⡕⣗⣝⢮⣣⢇⡏⡦⡀⠀⠀⠀⠰⣿⠀⠀⠀
+⠀⠀⠀⠀⡜⣜⢼⣪⢷⡽⡽⡮⣗⡽⣸⢰⠀⠀⠀⠸⣿⠀⠀⠀
+⠀⠀⠀⠠⡣⡳⣝⡾⣽⢯⣟⣯⣗⡯⣺⢸⠄⠀⠀⠸⣿⠀⠀⠀
+⠀⠀⠀⠐⡕⣝⢮⢯⡯⣿⢽⣞⢷⣝⢮⢣⠅⠀⠀⢸⣿⠀⠀⠀
+⠀⠀⠀⠀⢕⢵⢹⡳⣫⡯⣟⢾⢝⢮⢺⢘⠀⠀⠀⢰⣿⠀⠀⠀
+⠀⠀⠀⠀⠀⠣⡣⡫⡳⡝⡮⣫⢫⢣⠣⠁⠀⠀⠀⢰⣿⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠘⠘⠜⡜⡪⠪⠪⠈⠀⠀⠀⠀⠀⢰⣿⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠛⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+"
+`;

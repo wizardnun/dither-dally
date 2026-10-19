@@ -1,10 +1,14 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`ascii > matches the golden output 1`] = `"2a32d9a94209e87b"`;
+
 exports[`atkinson > matches the golden output 1`] = `"c6067277c3be7162"`;
 
 exports[`bayer > matches the golden output 1`] = `"92f22f9c2418a382"`;
 
 exports[`blue-noise > matches the golden output 1`] = `"f8f5174b7dd5cd0f"`;
+
+exports[`braille > matches the golden output 1`] = `"4dd77c4887416482"`;
 
 exports[`burkes > matches the golden output 1`] = `"9a9202e94d68d836"`;
 
