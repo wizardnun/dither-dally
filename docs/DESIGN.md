@@ -1,6 +1,6 @@
 # Dither Dally — Design
 
-Status: Phase 1 complete · Last updated: 2026-10-19
+Status: Phase 2 complete (two items deferred, see §9) · Last updated: 2026-10-19
 
 ## 1. What we're building
 
@@ -99,6 +99,23 @@ a divisor plus a list of `(dx, dy, weight)` taps to the right of and below the
 current pixel. Scan order (raster or serpentine; Hilbert curve later) is a
 separate option. Error strength scales the diffused error.
 
+### 3.4b Threshold fields and cell fills
+
+Most non-diffusion algorithms reduce to one of two shared engines:
+
+- **Threshold field** (`field.ts`): each pixel gets a rank in [0, 1), its
+  place in the inking order. The rank becomes an offset of up to half a
+  palette step before nearest-colour matching. Bayer, blue/white noise,
+  halftone dots and crosshatch are all just different rank functions, and all
+  work with any palette, not only black and white.
+- **Cell fill** (`cells.ts`): a partition of the image into cells (square
+  grid, Voronoi, hexagons, triangles), each filled with the palette colour
+  nearest its average. Optional outlines and shape masks are shared.
+
+Halftone dot ranks are exact *coverage*: the rank of a point is the share
+of the cell a dot covers when it reaches that point (analytic circle,
+diamond, square and line areas), so ink coverage equals tone.
+
 ### 3.5 Colour handling
 
 Two independent choices, exposed as settings (`ColorSettings`):
@@ -179,9 +196,11 @@ standard graphics method, our parameters · **original** = designed by us.
 | 0 | error diffusion | Floyd–Steinberg, Atkinson, Burkes, Jarvis–Judice–Ninke, Stucki, Sierra, Two-row Sierra, Sierra Lite, Stevenson–Arce | published |
 | 0 | ordered | Bayer 2/4/8/16, white noise | published / technique |
 | 1 ✓ | ordered | Blue noise (void-and-cluster, generated from the seed, 32² or 64² tile) | published |
-| 2 | error diffusion | Riemersma (Hilbert curve), Ostromoukhov (variable coefficients) | published |
-| 2 | halftone | Grayscale and CMYK AM screens, GCR, screen angles | technique |
-| 2 | pattern / polygon | Shape grids, crosshatch, stippling, Voronoi, hex/tri tessellation | technique |
+| 2 ✓ | error diffusion | Riemersma (Hilbert curve, fading error memory) | published |
+| 2 ✓ | halftone | Halftone (round/diamond/square/line dots, any angle, any palette); CMYK halftone (classic angles, GCR) | technique |
+| 2 ✓ | pattern | Crosshatch, Shape grid (circle/square/diamond/heart), Voronoi cells | technique |
+| 2 ✓ | polygon | Hexagons, Triangles | technique |
+| later | error diffusion | Ostromoukhov (variable coefficients) — needs the paper's 256-entry table from the primary source | published |
 | 4 | original | Line-diffusion glitch family, wave and contour fields | original |
 
 ## 5. Performance plan
@@ -240,3 +259,29 @@ See `CONTRIBUTING.md` for the contributor-facing version.
 - **Phase 1 ✓** Colour settings (linear light, OKLab), blue noise, preset
   links and files, PWA, GitHub Pages workflow (`.github/workflows/pages.yml`).
   Not yet deployed: the repository isn't on GitHub yet.
+- **Phase 2 ✓** Halftone, CMYK halftone, crosshatch, shape grid, Voronoi,
+  hexagons, triangles, Riemersma (22 styles in 6 families). Style gallery.
+  Deferred: Ostromoukhov (needs the primary-source coefficient table) and
+  WebGPU (every style renders in ~1–12 ms on a 200×120 image on the CPU, so
+  the complexity isn't justified yet; revisit with video).
+
+## 10. Interface
+
+Mac-style editor (see `apps/web/src/styles.css` header): unified toolbar,
+floating glass inspector on the right, zoomable canvas with split / side by
+side / result-only compare.
+
+**Choosing a style.** Styles are picked from a **gallery** rather than a
+permanent list, so the catalogue can grow without crowding the window:
+
+- Opened from the style card at the top of the inspector, the toolbar's
+  Styles button, or Ctrl/⌘ K.
+- Docks beside the inspector (the canvas re-fits so the whole image stays
+  visible); categories with counts, search across names, summaries and
+  authors, and live thumbnails of the user's own image.
+- Hovering or arrowing through cards previews that style on the canvas;
+  click or Enter applies it; Escape or clicking the canvas cancels.
+- On narrow screens it covers the canvas, with categories as a chip row.
+
+The left side of the window is intentionally free: Phase 3's layer stack
+goes there.

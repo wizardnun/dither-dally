@@ -388,79 +388,249 @@ canvas.overlay {
   overflow: hidden;
 }
 
-.panel.browser {
-  left: 10px;
-  width: 236px;
-}
-
 .panel.inspector {
   right: 10px;
   width: 300px;
 }
 
-/* ---------- algorithm browser ---------- */
+/* ---------- style gallery ---------- */
 
-.algo-list {
-  overflow-y: auto;
-  padding: 6px 8px 12px;
+/* Transparent layer that closes the gallery when you click the canvas. */
+.gallery-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
 }
 
-.group-title {
-  margin: 0;
-  padding: 12px 8px 5px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--secondary);
-  letter-spacing: 0.01em;
-}
-
-.algo-row {
+.gallery {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "search search" "cats body";
+  width: 500px;
+  border-radius: 12px;
+  background: var(--panel);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  box-shadow: 0 0 0 0.5px var(--panel-edge), 0 24px 64px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: pop-in 0.16s ease-out;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+.gallery-search {
+  grid-area: search;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 4px 8px 4px 5px;
+  gap: 8px;
+  margin: 12px 12px 4px;
+  padding: 0 10px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--seg-bg);
+  color: var(--secondary);
+}
+
+.gallery-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  color: var(--label);
+  outline: none;
+}
+
+.gallery-search:focus-within {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.gallery-cats {
+  grid-area: cats;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 8px 12px 12px;
+  overflow-y: auto;
+}
+
+.cat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
   border: 0;
   border-radius: 7px;
   background: transparent;
-  text-align: left;
   font-size: 13px;
+  text-align: left;
 }
 
-.algo-row:hover {
+.cat:hover {
   background: var(--hover);
 }
 
-.algo-row[aria-current="true"] {
+.cat[aria-current="true"] {
   background: var(--accent);
   color: var(--on-accent);
 }
 
-.algo-name {
+.cat .count {
+  font-size: 11px;
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.cat[aria-current="true"] .count {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.gallery-body {
+  grid-area: body;
+  overflow-y: auto;
+  padding: 8px 16px 16px 8px;
+  scrollbar-width: thin;
+}
+
+.gallery-heading {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gallery-empty {
+  margin: 24px 0;
+  color: var(--secondary);
+  font-size: 13px;
+}
+
+.style-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 14px 12px;
+}
+
+.style-card {
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  min-width: 0;
+}
+
+.style-thumb {
+  display: block;
+  aspect-ratio: 3 / 2;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--control);
+  box-shadow: 0 0 0 0.5px var(--control-edge), 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.style-thumb canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.style-card:hover .style-thumb,
+.style-card:focus-visible .style-thumb {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 0.5px var(--control-edge), 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.style-card:focus-visible {
+  outline: none;
+}
+
+.style-card:focus-visible .style-thumb,
+.style-card[aria-current="true"] .style-thumb {
+  box-shadow: 0 0 0 2.5px var(--accent), 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.style-name {
+  font-size: 12px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.thumb {
-  position: relative;
-  width: 44px;
-  height: 30px;
-  border-radius: 4px;
-  overflow: hidden;
-  background: var(--control);
-  box-shadow: 0 0 0 0.5px var(--control-edge);
+.style-family {
+  font-size: 11px;
+  color: var(--secondary);
 }
 
-.thumb canvas {
+/* style card at the top of the inspector */
+.style-picker {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 6px 10px 6px 6px;
+  border: 0.5px solid var(--control-edge);
+  border-radius: 10px;
+  background: var(--control);
+  box-shadow: var(--control-shadow);
+  text-align: left;
+}
+
+.style-picker:hover {
+  background: color-mix(in srgb, var(--control) 85%, var(--accent));
+}
+
+.style-picker-thumb {
+  display: block;
+  width: 72px;
+  height: 48px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--seg-bg);
+}
+
+.style-picker-thumb canvas {
+  display: block;
   width: 100%;
   height: 100%;
-  display: block;
 }
 
-.algo-row[aria-current="true"] .thumb {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
+.style-picker-text {
+  display: grid;
+  min-width: 0;
+}
+
+.style-picker-family {
+  font-size: 11px;
+  color: var(--secondary);
+}
+
+.style-picker-name {
+  font-size: 14px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.style-picker-chev {
+  color: var(--tertiary);
 }
 
 /* ---------- inspector ---------- */
@@ -474,13 +644,6 @@ canvas.overlay {
   display: grid;
   gap: 4px;
   padding: 16px 16px 14px;
-}
-
-.inspector-head h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: -0.005em;
 }
 
 .inspector-head p {
@@ -945,42 +1108,57 @@ canvas.overlay {
 
 /* ---------- scrollbars ---------- */
 
-.algo-list,
-.inspector-scroll {
+.inspector-scroll,
+.gallery-body,
+.gallery-cats {
   scrollbar-width: thin;
   scrollbar-color: var(--tertiary) transparent;
 }
 
-.algo-list::-webkit-scrollbar,
-.inspector-scroll::-webkit-scrollbar {
+.inspector-scroll::-webkit-scrollbar,
+.gallery-body::-webkit-scrollbar,
+.gallery-cats::-webkit-scrollbar {
   width: 10px;
 }
 
-.algo-list::-webkit-scrollbar-thumb,
-.inspector-scroll::-webkit-scrollbar-thumb {
+.inspector-scroll::-webkit-scrollbar-thumb,
+.gallery-body::-webkit-scrollbar-thumb,
+.gallery-cats::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 999px;
   background: transparent padding-box;
 }
 
 /* Like macOS overlay scrollbars: only visible while you're in the panel. */
-.algo-list:hover::-webkit-scrollbar-thumb,
-.inspector-scroll:hover::-webkit-scrollbar-thumb {
+.inspector-scroll:hover::-webkit-scrollbar-thumb,
+.gallery-body:hover::-webkit-scrollbar-thumb,
+.gallery-cats:hover::-webkit-scrollbar-thumb {
   background-color: var(--tertiary);
 }
 
-.algo-list:not(:hover),
-.inspector-scroll:not(:hover) {
+.inspector-scroll:not(:hover),
+.gallery-body:not(:hover),
+.gallery-cats:not(:hover) {
   scrollbar-color: transparent transparent;
 }
 
 /* ---------- small windows ---------- */
 
 @media (max-width: 899px) {
-  .panel.browser,
   .panel.inspector {
     width: min(300px, calc(100% - 20px));
     z-index: 6;
+  }
+
+  /* No room to dock: the gallery covers the canvas instead. */
+  .gallery-backdrop {
+    z-index: 8;
+  }
+
+  .gallery {
+    left: 10px;
+    right: 10px !important;
+    width: auto;
   }
 
   .doc-sub {
@@ -1001,6 +1179,31 @@ canvas.overlay {
 
   .toolbar .segmented {
     display: none;
+  }
+
+  /* Categories become a scrolling row above the grid. */
+  .gallery {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "search" "cats" "body";
+  }
+
+  .gallery-cats {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 6px 12px;
+  }
+
+  .cat {
+    flex: none;
+  }
+
+  .gallery-body {
+    padding: 8px 12px 12px;
+  }
+
+  .style-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   }
 }
 

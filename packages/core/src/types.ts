@@ -12,7 +12,7 @@ export type RGB = readonly [r: number, g: number, b: number];
 /** Ordered list of output colours. Algorithms only ever emit these. */
 export type Palette = readonly RGB[];
 
-export type Family = "basic" | "error-diffusion" | "ordered";
+export type Family = "basic" | "error-diffusion" | "ordered" | "halftone" | "pattern" | "polygon";
 
 export interface Reference {
   author: string;

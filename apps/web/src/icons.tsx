@@ -120,6 +120,22 @@ export const DocIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const StylesIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="3" width="6" height="6" rx="1.6" />
+    <rect x="11" y="3" width="6" height="6" rx="1.6" />
+    <rect x="3" y="11" width="6" height="6" rx="1.6" />
+    <rect x="11" y="11" width="6" height="6" rx="1.6" />
+  </Icon>
+);
+
+export const SearchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="8.8" cy="8.8" r="5.3" />
+    <path d="m12.8 12.8 4 4" />
+  </Icon>
+);
+
 export const FolderIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M2.8 6.2A1.7 1.7 0 0 1 4.5 4.5h3.3l1.7 1.7h6a1.7 1.7 0 0 1 1.7 1.7v6.4a1.7 1.7 0 0 1-1.7 1.7h-11a1.7 1.7 0 0 1-1.7-1.7z" />

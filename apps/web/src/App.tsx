@@ -8,7 +8,7 @@ import {
   type Params,
   type Preset,
 } from "@dither-dally/core";
-import { AlgorithmList } from "./AlgorithmList.tsx";
+import { Gallery } from "./Gallery.tsx";
 import { exportPng, loadImageFile, sampleImage, thumbnailData, toImageData } from "./image.ts";
 import { Inspector } from "./Inspector.tsx";
 import { downloadPreset, hashForPreset, initialPreset, noticeFor, presetFromFile, presetFromHash } from "./presetLink.ts";
@@ -19,9 +19,9 @@ import { Viewer, type CompareMode } from "./Viewer.tsx";
 
 type Source = CanvasImageSource & { width: number; height: number };
 
-/** Floating panel widths plus their margin, used to centre the image in the visible area. */
-const BROWSER_SPACE = 236 + 20;
+/** Panel widths plus margins, used to centre the image in the visible area. */
 const INSPECTOR_SPACE = 300 + 20;
+const GALLERY_SPACE = 500 + 10;
 const WIDE = () => window.innerWidth >= 900;
 
 export function App() {
@@ -35,7 +35,9 @@ export function App() {
   const [seed, setSeed] = useState(start.preset.seed);
   const [color, setColor] = useState<ColorSettings>(start.preset.color);
   const [mode, setMode] = useState<CompareMode>("split");
-  const [showBrowser, setShowBrowser] = useState(WIDE);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  /** Style shown on the canvas while hovering in the gallery; null shows the chosen one. */
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [showInspector, setShowInspector] = useState(WIDE);
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error?: boolean; id: number } | null>(
@@ -49,9 +51,14 @@ export function App() {
     () => ({ ...defaultParams(algorithm), ...paramsById[algorithmId] }),
     [algorithm, algorithmId, paramsById],
   );
+  const shownId = previewId ?? algorithmId;
+  const shownParams = useMemo(
+    () => (previewId ? { ...defaultParams(getAlgorithm(previewId)), ...paramsById[previewId] } : params),
+    [previewId, paramsById, params],
+  );
   const source = useMemo(() => toImageData(original, pixelSize), [original, pixelSize]);
-  const thumbSource = useMemo(() => thumbnailData(original, 88, 60), [original]);
-  const result = useDither({ source, algorithmId, params, paletteId, seed, color });
+  const thumbSource = useMemo(() => thumbnailData(original, 168, 112), [original]);
+  const result = useDither({ source, algorithmId: shownId, params: shownParams, paletteId, seed, color });
   const thumbnails = useThumbnails(thumbSource, paletteId, seed, color);
 
   const preset: Preset = useMemo(
@@ -148,6 +155,9 @@ export function App() {
       } else if (e.key === "e") {
         e.preventDefault();
         latest.current.exportImage();
+      } else if (e.key === "k") {
+        e.preventDefault();
+        setGalleryOpen((o) => !o);
       }
     };
     window.addEventListener("paste", onPaste);
@@ -163,11 +173,16 @@ export function App() {
   }
 
   const wide = typeof window !== "undefined" && window.innerWidth >= 900;
-  const insets = {
-    left: showBrowser && wide ? BROWSER_SPACE : 0,
-    right: showInspector && wide ? INSPECTOR_SPACE : 0,
-  };
-  const status = result.busy ? "Rendering…" : result.ms !== null ? `${result.ms.toFixed(0)} ms` : "";
+  const inspectorSpace = showInspector && wide ? INSPECTOR_SPACE : 0;
+  // While the gallery is docked, the image re-fits into the space left of it.
+  const insets = { left: 0, right: inspectorSpace + (galleryOpen && wide ? GALLERY_SPACE : 0) };
+  const status = previewId
+    ? `Preview: ${getAlgorithm(previewId).name}`
+    : result.busy
+      ? "Rendering…"
+      : result.ms !== null
+        ? `${result.ms.toFixed(0)} ms`
+        : "";
 
   return (
     <div
@@ -190,8 +205,8 @@ export function App() {
       <Toolbar
         title={fileName}
         subtitle={`${source.width * pixelSize} × ${source.height * pixelSize} · ${algorithm.name}`}
-        showBrowser={showBrowser}
-        onToggleBrowser={() => setShowBrowser((s) => !s)}
+        galleryOpen={galleryOpen}
+        onToggleGallery={() => setGalleryOpen((o) => !o)}
         showInspector={showInspector}
         onToggleInspector={() => setShowInspector((s) => !s)}
         mode={mode}
@@ -205,16 +220,30 @@ export function App() {
       <div className="workspace">
         <Viewer original={source} result={result.image} pixelSize={pixelSize} mode={mode} insets={insets} status={status} />
 
-        {showBrowser && (
-          <aside className="panel browser" aria-label="Algorithm browser">
-            <AlgorithmList selected={algorithmId} thumbnails={thumbnails} onSelect={setAlgorithmId} />
-          </aside>
+        {galleryOpen && (
+          <Gallery
+            selected={algorithmId}
+            thumbnails={thumbnails}
+            rightInset={inspectorSpace}
+            onPreview={setPreviewId}
+            onChoose={(id) => {
+              setAlgorithmId(id);
+              setPreviewId(null);
+              setGalleryOpen(false);
+            }}
+            onClose={() => {
+              setPreviewId(null);
+              setGalleryOpen(false);
+            }}
+          />
         )}
 
         {showInspector && (
           <aside className="panel inspector" aria-label="Inspector">
             <Inspector
               algorithm={algorithm}
+              thumbnail={thumbnails[algorithmId] ?? null}
+              onOpenStyles={() => setGalleryOpen(true)}
               params={params}
               onParam={setParam}
               paletteId={paletteId}

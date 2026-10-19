@@ -1,5 +1,5 @@
-import { createBuffer, paletteSpread } from "./color.ts";
-import { createColorModel, type ColorSettings, DEFAULT_COLOR } from "./colorspace.ts";
+import { type ColorSettings, DEFAULT_COLOR } from "./colorspace.ts";
+import { fieldDither } from "./field.ts";
 import { mulberry32 } from "./random.ts";
 import type { AlgorithmDefinition, Palette, PixelBuffer } from "./types.ts";
 
@@ -139,35 +139,14 @@ function cachedBlueNoise(n: number, seed: number): Uint32Array {
   return tex;
 }
 
-/**
- * Adds a per-pixel threshold offset (in units of one palette step, centred on 0)
- * to each channel, then snaps to the nearest palette colour. Offsets are applied
- * in sRGB because that is where palette steps look even; only the matching
- * metric from `color` applies.
- */
+/** Ordered dithering is a threshold field whose rank comes from a matrix or noise. */
 function thresholdDither(
   input: PixelBuffer,
   palette: Palette,
   color: ColorSettings,
   offsetAt: (x: number, y: number) => number,
 ): PixelBuffer {
-  const { width: w, height: h, data: src } = input;
-  const out = createBuffer(w, h);
-  const dst = out.data;
-  const model = createColorModel(palette, { space: "srgb", metric: color.metric });
-  const spread = paletteSpread(palette);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const t = offsetAt(x, y) * spread;
-      const c = palette[model.nearest(src[i]! + t, src[i + 1]! + t, src[i + 2]! + t)]!;
-      dst[i] = c[0];
-      dst[i + 1] = c[1];
-      dst[i + 2] = c[2];
-      dst[i + 3] = src[i + 3]!;
-    }
-  }
-  return out;
+  return fieldDither(input, palette, color, (x, y) => offsetAt(x, y) + 0.5);
 }
 
 export const bayer: AlgorithmDefinition = {

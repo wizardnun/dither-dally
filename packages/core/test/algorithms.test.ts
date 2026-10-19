@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_COLOR, type ColorSettings } from "../src/colorspace.ts";
-import { ALGORITHMS, defaultParams, getAlgorithm } from "../src/registry.ts";
+import { ALGORITHMS, TONAL_FAMILIES, defaultParams, getAlgorithm } from "../src/registry.ts";
 import { getPalette, PALETTES } from "../src/palettes.ts";
 import { hash, solid, testImage, usesOnlyPalette } from "./fixtures.ts";
 
@@ -87,7 +87,11 @@ describe("colour modes", () => {
 
 describe("tone reproduction", () => {
   // A flat 50% grey should come out close to half white on a 1-bit palette.
-  const tonal = ALGORITHMS.filter((a) => a.family !== "basic" && a.id !== "atkinson");
+  // Atkinson deliberately drops a quarter of the error, so it isn't tone-accurate.
+  // CMYK halftone needs ink colours: on a 1-bit palette a lone cyan, magenta or
+  // yellow dot snaps to white (its own tests use the RGB cube palette).
+  const notOnMono = new Set(["atkinson", "cmyk-halftone"]);
+  const tonal = ALGORITHMS.filter((a) => TONAL_FAMILIES.has(a.family) && !notOnMono.has(a.id));
   it.each(tonal.map((a) => [a.id, a] as const))("%s renders 50%% grey as ~50%% white", (_id, algo) => {
     const out = algo.run(solid(128, 128, 128), getPalette("mono").colors, defaultParams(algo), ctx);
     let white = 0;

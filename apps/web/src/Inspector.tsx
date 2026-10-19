@@ -1,11 +1,14 @@
-import { PIXEL_SIZE_RANGE, type AlgorithmDefinition, type ColorSettings, type Params } from "@dither-dally/core";
+import { FAMILY_LABELS, PIXEL_SIZE_RANGE, type AlgorithmDefinition, type ColorSettings, type Params } from "@dither-dally/core";
+import { Canvas } from "./Canvas.tsx";
 import { ControlField } from "./ControlField.tsx";
-import { DiceIcon, DocIcon, FolderIcon, LinkIcon } from "./icons.tsx";
+import { ChevronIcon, DiceIcon, DocIcon, FolderIcon, LinkIcon } from "./icons.tsx";
 import { PalettePicker } from "./PalettePicker.tsx";
 import { Row, Section, Segmented, SliderRow } from "./ui.tsx";
 
 interface Props {
   algorithm: AlgorithmDefinition;
+  thumbnail: ImageData | null;
+  onOpenStyles: () => void;
   params: Params;
   onParam: (id: string, value: Params[string]) => void;
   paletteId: string;
@@ -27,7 +30,16 @@ export function Inspector(p: Props) {
   return (
     <div className="inspector-scroll">
       <header className="inspector-head">
-        <h2>{algorithm.name}</h2>
+        <button type="button" className="style-picker" onClick={p.onOpenStyles} title="Browse styles (Ctrl K)">
+          <span className="style-picker-thumb">
+            <Canvas image={p.thumbnail} label="" />
+          </span>
+          <span className="style-picker-text">
+            <span className="style-picker-family">{FAMILY_LABELS[algorithm.family]}</span>
+            <span className="style-picker-name">{algorithm.name}</span>
+          </span>
+          <ChevronIcon size={14} className="style-picker-chev" />
+        </button>
         <p>{algorithm.summary}</p>
         {algorithm.reference && (
           <p className="ref">

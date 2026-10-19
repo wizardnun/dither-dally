@@ -3,7 +3,7 @@
 An open-source dithering studio for the browser. Drop in an image, pick an
 algorithm and a palette, tune it live, export.
 
-> Early development (Phase 1 of 4). See [docs/DESIGN.md](docs/DESIGN.md) for
+> Early development (Phase 2 of 4). See [docs/DESIGN.md](docs/DESIGN.md) for
 > the plan.
 
 - **Private:** your images never leave your device. Everything runs in the browser.
@@ -18,8 +18,11 @@ algorithm and a palette, tune it live, export.
 | Family | Algorithms |
 |---|---|
 | Basic | Threshold, Nearest colour |
-| Error diffusion | Floyd–Steinberg, Atkinson, Burkes, Jarvis–Judice–Ninke, Stucki, Sierra, Two-row Sierra, Sierra Lite, Stevenson–Arce |
+| Error diffusion | Floyd–Steinberg, Atkinson, Burkes, Jarvis–Judice–Ninke, Stucki, Sierra, Two-row Sierra, Sierra Lite, Stevenson–Arce, Riemersma |
 | Ordered | Bayer (2×2 to 16×16), Blue noise (void-and-cluster), White noise |
+| Halftone | Halftone (round, diamond, square or line dots), CMYK halftone |
+| Pattern | Crosshatch, Shape grid, Voronoi cells |
+| Polygon | Hexagons, Triangles |
 
 ## Develop
 

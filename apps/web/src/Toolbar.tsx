@@ -1,12 +1,12 @@
-import { ExportIcon, PhotoIcon, ShareIcon, SideBySideIcon, SidebarLeftIcon, SidebarRightIcon, SplitIcon, SquareIcon } from "./icons.tsx";
+import { ExportIcon, PhotoIcon, ShareIcon, SideBySideIcon, SidebarRightIcon, SplitIcon, SquareIcon, StylesIcon } from "./icons.tsx";
 import { Segmented } from "./ui.tsx";
 import type { CompareMode } from "./Viewer.tsx";
 
 interface Props {
   title: string;
   subtitle: string;
-  showBrowser: boolean;
-  onToggleBrowser: () => void;
+  galleryOpen: boolean;
+  onToggleGallery: () => void;
   showInspector: boolean;
   onToggleInspector: () => void;
   mode: CompareMode;
@@ -24,12 +24,12 @@ export function Toolbar(p: Props) {
         <button
           type="button"
           className="tool"
-          aria-pressed={p.showBrowser}
-          aria-label="Show algorithm browser"
-          title="Algorithm browser"
-          onClick={p.onToggleBrowser}
+          aria-pressed={p.galleryOpen}
+          aria-label="Browse styles"
+          title="Browse styles (Ctrl K)"
+          onClick={p.onToggleGallery}
         >
-          <SidebarLeftIcon />
+          <StylesIcon />
         </button>
         <button type="button" className="tool" aria-label="Open image" title="Open image (Ctrl O)" onClick={p.onOpen}>
           <PhotoIcon />

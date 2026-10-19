@@ -28,6 +28,10 @@ export {
 export { quantize } from "./basic.ts";
 export { KERNELS, diffuse, type Kernel, type Tap } from "./diffusion.ts";
 export { bayerMatrix, blueNoiseTexture } from "./ordered.ts";
+export { darkest, fieldDither, lightest, luma } from "./field.ts";
+export { circleCoverage, screenCoords, spotRank, type DotShape } from "./halftone.ts";
+export { inShape, type GridShape } from "./cells.ts";
+export { hilbertPoint } from "./riemersma.ts";
 export {
   PIXEL_SIZE_RANGE,
   PRESET_VERSION,
@@ -41,4 +45,4 @@ export {
 } from "./preset.ts";
 export { mulberry32 } from "./random.ts";
 export { PALETTES, getPalette, type NamedPalette } from "./palettes.ts";
-export { ALGORITHMS, FAMILY_LABELS, defaultParams, getAlgorithm } from "./registry.ts";
+export { ALGORITHMS, FAMILY_LABELS, TONAL_FAMILIES, defaultParams, getAlgorithm } from "./registry.ts";
