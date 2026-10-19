@@ -1,6 +1,6 @@
 # Dither Dally — Design
 
-Status: Phase 2 complete (two items deferred, see §9) · Last updated: 2026-10-19
+Status: Phase 3 complete · Last updated: 2026-10-19
 
 ## 1. What we're building
 
@@ -144,25 +144,53 @@ Weighted RGB was dropped: OKLab covers the same need better.
 
 ### 3.6 Pipeline
 
-A document will be an ordered list of layers, each with an `enabled` flag and
-its own settings. Planned layer types: adjustments, dither, halftone, tint,
-glow, chromatic split, glitch, post-processing (Phase 3).
+A document is an ordered list of **layers**, run top to bottom
+(`pipeline.ts`): exactly one **dither layer** plus any number of **effect
+layers** before or after it, each with an `enabled` flag and its own
+settings. Effects before the dither shape the image going in; effects after
+it treat the dithered result and may add colours outside the palette on
+purpose (a tint, a glow).
+
+Effects (`effects.ts`) are full-colour `EffectDefinition`s with the same
+self-describing control schema as algorithms (plus a `color` control kind):
+
+| Category | Effects |
+|---|---|
+| Adjust | Adjust (brightness, contrast, midtones, saturation, hue), Blur, Sharpen, Invert, Grain |
+| Light & colour | Tint (multiply, screen, overlay, soft light, darken, lighten, difference, colour; W3C compositing formulas), Bloom, Vignette |
+| Glitch | Chromatic split, Scanlines, Row shift |
+
+Sizes (blur radius, distances) are in working pixels, i.e. after the pixel
+size is applied, so the look scales with it. Each effect layer's seed is the
+document seed mixed with a hash of the layer id: two Grain layers differ, and
+reordering doesn't change either one's pattern.
+
+Layer list operations (`layers.ts`: move, insert, remove) are pure functions
+in core with their own tests; the UI only calls them.
+
+**Palette extraction** (`extract.ts`): k-means in OKLab with a seeded
+k-means++ start (≤ 40,000 sampled pixels, 16 iterations), returning 2–16
+colours sorted by perceived lightness. The result is stored in the preset as
+a custom palette.
 
 ### 3.7 Presets and sharing
 
 Settings (never the image) are a versioned JSON preset:
 
 ```ts
-interface Preset {               // version 1, Phase 1
-  version: 1;
-  algorithm: string;             // algorithm id
-  params: Params;                // that algorithm's control values
-  palette: string;               // palette id
+interface Preset {               // version 2, Phase 3
+  version: 2;
+  layers: Layer[];               // exactly one { kind: "dither" }
+  palette: string | { name: string; colors: string[] };  // built-in id or custom hex list (2–64)
   pixelSize: number;             // 1–8
   seed: number;
   color: ColorSettings;
 }
 ```
+
+Version 1 presets (Phase 1–2: a single `algorithm` + `params`) are migrated
+on load into a one-layer version 2 document, so old links keep working
+(covered by a test using a real Phase 1 link).
 
 - **Links:** the app keeps the current preset in the URL as
   `#p=<base64url JSON>`, so copying the address shares the exact look. The
@@ -170,12 +198,11 @@ interface Preset {               // version 1, Phase 1
 - **Files:** Save/Load as `*.dither-dally.json`. Dropping a preset file on
   the app loads it.
 - **Validation:** presets come from strangers, so `parsePreset` treats them as
-  untrusted. It rejects wrong versions and unknown algorithms; otherwise it
-  clamps sliders to range and step, checks toggles and selects, drops unknown
-  keys and falls back to defaults, reporting every fix as a warning the UI
-  shows.
-- **Versioning:** Phase 3's layer stack will be version 2, with a migration
-  from version 1.
+  untrusted. It rejects wrong versions and missing layer lists; otherwise it
+  clamps sliders to range and step, checks toggles, selects and colours,
+  drops unknown effects and keys, repairs duplicate layer ids, guarantees
+  exactly one dither layer, caps the stack at 32 layers, and falls back to
+  defaults — reporting every fix as a warning the UI shows.
 
 ### 3.8 Offline and install
 
@@ -264,6 +291,23 @@ See `CONTRIBUTING.md` for the contributor-facing version.
   Deferred: Ostromoukhov (needs the primary-source coefficient table) and
   WebGPU (every style renders in ~1–12 ms on a 200×120 image on the CPU, so
   the complexity isn't justified yet; revisit with video).
+- **Phase 3 ✓** Layer stack with 11 effects, preset version 2 (with v1
+  migration), palette extraction, undo/redo, batch export.
+
+### Phase 3 decisions
+
+- **Export is WYSIWYG.** Export and batch export render at the same working
+  resolution as the preview (long side ≤ 1,600 px, then scaled by pixel
+  size). Effect sizes are in working pixels, so rendering at another
+  resolution would change the look. A separate full-resolution export can
+  come later if it rescales effect sizes consistently.
+- **One dither layer.** Several dither layers rarely make sense (the second
+  re-dithers an already-quantised image) and would complicate the palette
+  and the style gallery. The format allows revisiting this.
+- **Undo** covers every document change (layers, settings, palette, preset
+  loads). Rapid changes to the same control within 700 ms merge into one
+  step, so a slider drag undoes in one go. The image itself and view state
+  (zoom, panels) are not part of the history.
 
 ## 10. Interface
 
@@ -283,5 +327,12 @@ permanent list, so the catalogue can grow without crowding the window:
   click or Enter applies it; Escape or clicking the canvas cancels.
 - On narrow screens it covers the canvas, with categories as a chip row.
 
-The left side of the window is intentionally free: Phase 3's layer stack
-goes there.
+**Layers** (left panel): the stack in processing order between "Your image"
+and "Output". Click to select (the inspector shows that layer), drag or
+Alt + ↑/↓ to reorder, eye to hide, Delete or the bin to remove an effect,
+**+** for a categorised effect menu (new effects go just below the selected
+layer). Badges are coloured by category; the dither layer has a checkerboard.
+
+**Export menu** (toolbar): Export PNG (Ctrl/⌘ E) or Batch export…, which
+asks for images, confirms in a sheet, then writes into a chosen folder where
+the browser supports it (Chromium) or downloads each file otherwise.

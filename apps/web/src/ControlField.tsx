@@ -1,5 +1,5 @@
 import type { Control, ParamValue } from "@dither-dally/core";
-import { Row, Segmented, SliderRow, SwitchRow } from "./ui.tsx";
+import { HexField, Row, Segmented, SliderRow, SwitchRow } from "./ui.tsx";
 
 interface Props {
   control: Control;
@@ -28,11 +28,24 @@ export function ControlField({ control, value, onChange }: Props) {
       return (
         <SwitchRow id={id} label={control.label} help={control.help} checked={Boolean(value ?? control.default)} onChange={onChange} />
       );
+    case "color": {
+      const hex = String(value ?? control.default);
+      return (
+        <Row label={control.label} htmlFor={id}>
+          <span className="color-field">
+            <input id={id} type="color" value={hex} onChange={(e) => onChange(e.target.value)} />
+            <HexField label={`${control.label} hex`} value={hex} onChange={onChange} />
+          </span>
+        </Row>
+      );
+    }
     case "select": {
       const current = String(value ?? control.default);
+      // A segmented control only when every option fits side by side in the inspector.
+      const segmented = control.options.length <= 4 && control.options.reduce((n, o) => n + o.label.length, 0) <= 18;
       return (
-        <Row label={control.label} htmlFor={control.options.length > 4 ? id : undefined}>
-          {control.options.length <= 4 ? (
+        <Row label={control.label} htmlFor={segmented ? undefined : id}>
+          {segmented ? (
             <Segmented label={control.label} value={current} options={control.options} onChange={onChange} />
           ) : (
             <select id={id} className="popup" value={current} onChange={(e) => onChange(e.target.value)}>

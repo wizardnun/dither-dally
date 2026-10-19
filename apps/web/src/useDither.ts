@@ -1,35 +1,66 @@
 import { useEffect, useRef, useState } from "react";
-import type { ColorSettings, Params } from "@dither-dally/core";
-import type { DitherRequest, DitherResponse } from "./protocol.ts";
+import type { ColorSettings, Layer, RGB } from "@dither-dally/core";
+import type { RenderRequest, RenderResponse } from "./protocol.ts";
 
-export interface DitherJob {
+export interface RenderJob {
   source: ImageData | null;
-  algorithmId: string;
-  params: Params;
-  paletteId: string;
+  layers: Layer[];
+  palette: RGB[];
   seed: number;
   color: ColorSettings;
 }
 
-export interface DitherResult {
+export interface RenderResult {
   image: ImageData | null;
   ms: number | null;
   error: string | null;
   busy: boolean;
 }
 
+export function createRenderWorker(): Worker {
+  return new Worker(new URL("./dither.worker.ts", import.meta.url), { type: "module" });
+}
+
+/** Renders one job in a worker and resolves with the result. For one-off work like batch export. */
+export function renderOnce(worker: Worker, job: Omit<RenderJob, "source"> & { source: ImageData }): Promise<ImageData> {
+  return new Promise((resolve, reject) => {
+    const requestId = Math.floor(Math.random() * 1e9);
+    const onMessage = (e: MessageEvent<RenderResponse>) => {
+      if (e.data.requestId !== requestId) return;
+      worker.removeEventListener("message", onMessage);
+      const res = e.data;
+      if (res.ok) resolve(new ImageData(new Uint8ClampedArray(res.buffer), res.width, res.height));
+      else reject(new Error(res.error));
+    };
+    worker.addEventListener("message", onMessage);
+    const buffer = job.source.data.slice().buffer;
+    const req: RenderRequest = {
+      requestId,
+      width: job.source.width,
+      height: job.source.height,
+      buffer,
+      layers: job.layers,
+      palette: job.palette,
+      seed: job.seed,
+      color: job.color,
+    };
+    worker.postMessage(req, [buffer]);
+  });
+}
+
 /**
- * Runs the job in a Web Worker whenever it changes. Only the latest request's
- * result is kept; if a newer request is pending, older results are dropped.
+ * Renders the layer stack in a Web Worker whenever the job changes. Only the
+ * latest request's result is kept; if a newer request is pending, older
+ * results are dropped.
  */
-export function useDither(job: DitherJob): DitherResult {
+export function useRender(job: RenderJob): RenderResult {
   const workerRef = useRef<Worker | null>(null);
   const latest = useRef(0);
-  const [result, setResult] = useState<DitherResult>({ image: null, ms: null, error: null, busy: false });
+  const [result, setResult] = useState<RenderResult>({ image: null, ms: null, error: null, busy: false });
 
   useEffect(() => {
-    const worker = new Worker(new URL("./dither.worker.ts", import.meta.url), { type: "module" });
-    worker.onmessage = (e: MessageEvent<DitherResponse>) => {
+    const worker = createRenderWorker();
+    worker.onmessage = (e: MessageEvent<RenderResponse>) => {
       const res = e.data;
       if (res.requestId !== latest.current) return;
       if (res.ok) {
@@ -43,26 +74,16 @@ export function useDither(job: DitherJob): DitherResult {
     return () => worker.terminate();
   }, []);
 
-  const { source, algorithmId, params, paletteId, seed, color } = job;
+  const { source, layers, palette, seed, color } = job;
   useEffect(() => {
     const worker = workerRef.current;
     if (!worker || !source) return;
     const requestId = ++latest.current;
     const buffer = source.data.slice().buffer;
-    const req: DitherRequest = {
-      requestId,
-      width: source.width,
-      height: source.height,
-      buffer,
-      algorithmId,
-      params,
-      paletteId,
-      seed,
-      color,
-    };
+    const req: RenderRequest = { requestId, width: source.width, height: source.height, buffer, layers, palette, seed, color };
     setResult((r) => ({ ...r, busy: true }));
     worker.postMessage(req, [buffer]);
-  }, [source, algorithmId, params, paletteId, seed, color]);
+  }, [source, layers, palette, seed, color]);
 
   return result;
 }

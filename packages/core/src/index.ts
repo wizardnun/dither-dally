@@ -1,7 +1,13 @@
 export type {
   AlgorithmDefinition,
+  ColorControl,
   Control,
+  DitherLayer,
+  EffectCategory,
+  EffectDefinition,
+  EffectLayer,
   Family,
+  Layer,
   Palette,
   ParamValue,
   Params,
@@ -19,6 +25,7 @@ export {
   createColorModel,
   linearToOklab,
   linearToSrgb,
+  oklabToLinear,
   srgbToLinear,
   type ColorModel,
   type ColorSettings,
@@ -32,15 +39,29 @@ export { darkest, fieldDither, lightest, luma } from "./field.ts";
 export { circleCoverage, screenCoords, spotRank, type DotShape } from "./halftone.ts";
 export { inShape, type GridShape } from "./cells.ts";
 export { hilbertPoint } from "./riemersma.ts";
+export { EFFECTS, EFFECT_CATEGORY_LABELS, gaussianBlur, getEffect } from "./effects.ts";
+export { extractPalette } from "./extract.ts";
+export { runPipeline, type PipelineSettings } from "./pipeline.ts";
+export { insertLayerAfter, moveLayer, removeLayer } from "./layers.ts";
 export {
+  CUSTOM_PALETTE_SIZE,
+  MAX_LAYERS,
   PIXEL_SIZE_RANGE,
   PRESET_VERSION,
   PresetError,
+  customPalette,
   decodePreset,
   defaultPreset,
+  ditherLayer,
+  effectLayer,
   encodePreset,
+  getDitherLayer,
+  newLayerId,
   parsePreset,
+  resolvePalette,
   sanitizeParams,
+  type CustomPalette,
+  type PaletteRef,
   type Preset,
 } from "./preset.ts";
 export { mulberry32 } from "./random.ts";

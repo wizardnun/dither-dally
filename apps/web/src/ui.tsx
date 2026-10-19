@@ -124,6 +124,32 @@ export function Row({ label, htmlFor, children }: { label: string; htmlFor?: str
   );
 }
 
+/** A text field for a #rrggbb colour that only reports complete, valid values. */
+export function HexField({ label, value, onChange }: { label: string; value: string; onChange: (hex: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  // Follow outside changes (colour picker, undo) unless the user is mid-edit.
+  const [lastValue, setLastValue] = useState(value);
+  if (value !== lastValue) {
+    setLastValue(value);
+    setDraft(value);
+  }
+  return (
+    <input
+      aria-label={label}
+      className="text-field mono"
+      value={draft}
+      spellCheck={false}
+      maxLength={7}
+      onChange={(e) => {
+        const v = e.target.value.trim();
+        setDraft(v);
+        if (/^#[0-9a-f]{6}$/i.test(v)) onChange(v.toLowerCase());
+      }}
+      onBlur={() => setDraft(value)}
+    />
+  );
+}
+
 /** A switch with its label on the left and optional help text underneath. */
 export function SwitchRow({ id, label, help, checked, onChange }: { id: string; label: string; help?: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (

@@ -1,20 +1,31 @@
+import { paletteFromHex, toHex } from "./color.ts";
 import { DEFAULT_COLOR, type ColorSettings } from "./colorspace.ts";
+import { EFFECTS } from "./effects.ts";
 import { PALETTES } from "./palettes.ts";
 import { ALGORITHMS, defaultParams } from "./registry.ts";
-import type { AlgorithmDefinition, Params } from "./types.ts";
+import type { Control, DitherLayer, EffectLayer, Layer, Palette, Params } from "./types.ts";
 
-export const PRESET_VERSION = 1;
+export const PRESET_VERSION = 2;
 export const PIXEL_SIZE_RANGE = { min: 1, max: 8 } as const;
+export const MAX_LAYERS = 32;
+export const CUSTOM_PALETTE_SIZE = { min: 2, max: 64 } as const;
 
-/**
- * Everything needed to reproduce a look, except the image itself.
- * Phase 3 replaces the single algorithm with a list of layers (version 2).
- */
+/** A palette made by the user (e.g. extracted from an image), stored in the preset itself. */
+export interface CustomPalette {
+  name: string;
+  /** 6-digit hex colours. */
+  colors: string[];
+}
+
+/** A built-in palette id, or a custom palette carried in the preset. */
+export type PaletteRef = string | CustomPalette;
+
+/** Everything needed to reproduce a look, except the image itself. */
 export interface Preset {
   version: typeof PRESET_VERSION;
-  algorithm: string;
-  params: Params;
-  palette: string;
+  /** Run top to bottom. Always contains exactly one dither layer. */
+  layers: Layer[];
+  palette: PaletteRef;
   pixelSize: number;
   seed: number;
   color: ColorSettings;
@@ -24,12 +35,25 @@ export class PresetError extends Error {
   override name = "PresetError";
 }
 
-export function defaultPreset(algorithmId = "floyd-steinberg"): Preset {
+export function newLayerId(): string {
+  return crypto.randomUUID().slice(0, 8);
+}
+
+export function ditherLayer(algorithmId = "floyd-steinberg"): DitherLayer {
   const algorithm = ALGORITHMS.find((a) => a.id === algorithmId) ?? ALGORITHMS[0]!;
+  return { id: newLayerId(), kind: "dither", enabled: true, algorithm: algorithm.id, params: defaultParams(algorithm) };
+}
+
+export function effectLayer(effectId: string): EffectLayer {
+  const effect = EFFECTS.find((e) => e.id === effectId);
+  if (!effect) throw new Error(`Unknown effect "${effectId}"`);
+  return { id: newLayerId(), kind: "effect", enabled: true, effect: effect.id, params: defaultParams(effect) };
+}
+
+export function defaultPreset(algorithmId = "floyd-steinberg"): Preset {
   return {
     version: PRESET_VERSION,
-    algorithm: algorithm.id,
-    params: defaultParams(algorithm),
+    layers: [ditherLayer(algorithmId)],
     palette: "mono",
     pixelSize: 2,
     seed: 1,
@@ -37,25 +61,48 @@ export function defaultPreset(algorithmId = "floyd-steinberg"): Preset {
   };
 }
 
+export function resolvePalette(ref: PaletteRef): Palette {
+  if (typeof ref !== "string") return paletteFromHex(ref.colors);
+  return (PALETTES.find((p) => p.id === ref) ?? PALETTES[0]!).colors;
+}
+
+export function customPalette(name: string, colors: Palette): CustomPalette {
+  return { name, colors: colors.map(toHex) };
+}
+
+/** The document's dither layer. Every valid preset has exactly one. */
+export function getDitherLayer(preset: Pick<Preset, "layers">): DitherLayer {
+  const d = preset.layers.find((l): l is DitherLayer => l.kind === "dither");
+  if (!d) throw new PresetError("This document has no dither layer.");
+  return d;
+}
+
 /**
  * Validates untrusted input (a file or a shared link) into a usable preset.
- * Throws PresetError if it can't be used at all; otherwise fixes what it can
- * and reports each fix in `warnings`.
+ * Reads version 1 (single algorithm) and version 2 (layers). Throws
+ * PresetError if it can't be used at all; otherwise fixes what it can and
+ * reports each fix in `warnings`.
  */
 export function parsePreset(input: unknown): { preset: Preset; warnings: string[] } {
   if (!isRecord(input)) throw new PresetError("A preset must be a JSON object.");
+  if (input.version === 1) return parsePreset(migrateV1(input));
   if (input.version !== PRESET_VERSION) {
-    throw new PresetError(`Unsupported preset version ${JSON.stringify(input.version)}. This app reads version ${PRESET_VERSION}.`);
+    throw new PresetError(
+      `Unsupported preset version ${JSON.stringify(input.version)}. This app reads versions 1 and ${PRESET_VERSION}.`,
+    );
   }
-  const algorithm = ALGORITHMS.find((a) => a.id === input.algorithm);
-  if (!algorithm) throw new PresetError(`Unknown algorithm ${JSON.stringify(input.algorithm)}.`);
-
   const warnings: string[] = [];
-  const base = defaultPreset(algorithm.id);
+  const base = defaultPreset();
 
-  let palette = base.palette;
+  const layers = parseLayers(input.layers, warnings);
+
+  let palette: PaletteRef = base.palette;
   if (typeof input.palette === "string" && PALETTES.some((p) => p.id === input.palette)) palette = input.palette;
-  else warnings.push(`Unknown palette ${JSON.stringify(input.palette)}; using ${base.palette}.`);
+  else if (isRecord(input.palette)) {
+    const custom = parseCustomPalette(input.palette);
+    if (custom) palette = custom;
+    else warnings.push("The custom palette was invalid; using 1-bit.");
+  } else warnings.push(`Unknown palette ${JSON.stringify(input.palette)}; using 1-bit.`);
 
   const pixelSize = clampInt(input.pixelSize, PIXEL_SIZE_RANGE.min, PIXEL_SIZE_RANGE.max);
   if (pixelSize === null) warnings.push(`Invalid pixel size; using ${base.pixelSize}.`);
@@ -76,8 +123,7 @@ export function parsePreset(input: unknown): { preset: Preset; warnings: string[
   return {
     preset: {
       version: PRESET_VERSION,
-      algorithm: algorithm.id,
-      params: sanitizeParams(algorithm, input.params, warnings),
+      layers,
       palette,
       pixelSize: pixelSize ?? base.pixelSize,
       seed: seed ?? base.seed,
@@ -87,22 +133,89 @@ export function parsePreset(input: unknown): { preset: Preset; warnings: string[
   };
 }
 
+/** Version 1 had a single algorithm and its params at the top level. */
+function migrateV1(v1: Record<string, unknown>): Record<string, unknown> {
+  const algorithm = ALGORITHMS.find((a) => a.id === v1.algorithm);
+  if (!algorithm) throw new PresetError(`Unknown algorithm ${JSON.stringify(v1.algorithm)}.`);
+  const { algorithm: _a, params, ...rest } = v1;
+  return {
+    ...rest,
+    version: 2,
+    layers: [{ id: newLayerId(), kind: "dither", enabled: true, algorithm: algorithm.id, params }],
+  };
+}
+
+function parseLayers(raw: unknown, warnings: string[]): Layer[] {
+  if (!Array.isArray(raw)) throw new PresetError("A preset needs a list of layers.");
+  const layers: Layer[] = [];
+  const ids = new Set<string>();
+  let dropped = 0;
+  for (const item of raw.slice(0, MAX_LAYERS)) {
+    if (!isRecord(item)) {
+      dropped++;
+      continue;
+    }
+    let id = typeof item.id === "string" && /^[\w-]{1,64}$/.test(item.id) ? item.id : newLayerId();
+    while (ids.has(id)) id = newLayerId();
+    ids.add(id);
+    const enabled = typeof item.enabled === "boolean" ? item.enabled : true;
+    if (item.kind === "dither") {
+      const algorithm = ALGORITHMS.find((a) => a.id === item.algorithm);
+      if (!algorithm) {
+        warnings.push(`Unknown style ${JSON.stringify(item.algorithm)}; using Floyd–Steinberg.`);
+        layers.push({ ...ditherLayer(), id, enabled });
+        continue;
+      }
+      if (layers.some((l) => l.kind === "dither")) {
+        warnings.push("Only one dither layer is supported; extra ones were removed.");
+        continue;
+      }
+      layers.push({ id, kind: "dither", enabled, algorithm: algorithm.id, params: sanitizeParams(algorithm, item.params, warnings) });
+    } else if (item.kind === "effect") {
+      const effect = EFFECTS.find((e) => e.id === item.effect);
+      if (!effect) {
+        warnings.push(`Unknown effect ${JSON.stringify(item.effect)} was removed.`);
+        continue;
+      }
+      layers.push({ id, kind: "effect", enabled, effect: effect.id, params: sanitizeParams(effect, item.params, warnings) });
+    } else {
+      dropped++;
+    }
+  }
+  if (raw.length > MAX_LAYERS) warnings.push(`Only the first ${MAX_LAYERS} layers were kept.`);
+  if (dropped) warnings.push(`${dropped} unreadable layer${dropped > 1 ? "s were" : " was"} removed.`);
+  if (!layers.some((l) => l.kind === "dither")) {
+    warnings.push("No dither layer found; added Floyd–Steinberg.");
+    layers.push(ditherLayer());
+  }
+  return layers;
+}
+
+function parseCustomPalette(raw: Record<string, unknown>): CustomPalette | null {
+  if (!Array.isArray(raw.colors)) return null;
+  const colors = raw.colors.filter((c): c is string => typeof c === "string" && /^#[0-9a-f]{6}$/i.test(c)).map((c) => c.toLowerCase());
+  if (colors.length < CUSTOM_PALETTE_SIZE.min || colors.length > CUSTOM_PALETTE_SIZE.max) return null;
+  const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim().slice(0, 40) : "Custom";
+  return { name, colors };
+}
+
 /** Keeps only known controls, clamps sliders to range and step, and fills in defaults. */
-export function sanitizeParams(algorithm: AlgorithmDefinition, raw: unknown, warnings: string[] = []): Params {
-  const params = defaultParams(algorithm);
+export function sanitizeParams(def: { controls: readonly Control[] }, raw: unknown, warnings: string[] = []): Params {
+  const params = defaultParams(def);
   if (raw === undefined) return params;
   if (!isRecord(raw)) {
-    warnings.push("Invalid params; using defaults.");
+    warnings.push("Invalid settings; using defaults.");
     return params;
   }
-  for (const control of algorithm.controls) {
+  for (const control of def.controls) {
     const v = raw[control.id];
     if (v === undefined) continue;
     switch (control.kind) {
       case "slider":
         if (typeof v === "number" && Number.isFinite(v)) {
           const stepped = Math.round((v - control.min) / control.step) * control.step + control.min;
-          params[control.id] = Math.min(control.max, Math.max(control.min, stepped));
+          // Round away float noise from fractional steps (0.1 + 0.2 …).
+          params[control.id] = Number(Math.min(control.max, Math.max(control.min, stepped)).toFixed(6));
         } else warnings.push(`Invalid value for "${control.label}"; using ${control.default}.`);
         break;
       case "toggle":
@@ -113,10 +226,14 @@ export function sanitizeParams(algorithm: AlgorithmDefinition, raw: unknown, war
         if (typeof v === "string" && control.options.some((o) => o.value === v)) params[control.id] = v;
         else warnings.push(`Invalid value for "${control.label}"; using ${control.default}.`);
         break;
+      case "color":
+        if (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v)) params[control.id] = v.toLowerCase();
+        else warnings.push(`Invalid colour for "${control.label}"; using ${control.default}.`);
+        break;
     }
   }
   for (const key of Object.keys(raw)) {
-    if (!algorithm.controls.some((c) => c.id === key)) warnings.push(`Ignored unknown setting "${key}".`);
+    if (!def.controls.some((c) => c.id === key)) warnings.push(`Ignored unknown setting "${key}".`);
   }
   return params;
 }

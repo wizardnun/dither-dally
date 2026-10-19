@@ -1,10 +1,25 @@
-import { ExportIcon, PhotoIcon, ShareIcon, SideBySideIcon, SidebarRightIcon, SplitIcon, SquareIcon, StylesIcon } from "./icons.tsx";
+import { useEffect, useRef, useState } from "react";
+import {
+  ExportIcon,
+  PhotoIcon,
+  RedoIcon,
+  ShareIcon,
+  SideBySideIcon,
+  SidebarLeftIcon,
+  SidebarRightIcon,
+  SplitIcon,
+  SquareIcon,
+  StylesIcon,
+  UndoIcon,
+} from "./icons.tsx";
 import { Segmented } from "./ui.tsx";
 import type { CompareMode } from "./Viewer.tsx";
 
 interface Props {
   title: string;
   subtitle: string;
+  showLayers: boolean;
+  onToggleLayers: () => void;
   galleryOpen: boolean;
   onToggleGallery: () => void;
   showInspector: boolean;
@@ -14,13 +29,21 @@ interface Props {
   onOpen: () => void;
   onShare: () => void;
   onExport: () => void;
+  onBatch: () => void;
   canExport: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export function Toolbar(p: Props) {
   return (
     <header className="toolbar">
       <div className="toolbar-group">
+        <button type="button" className="tool" aria-pressed={p.showLayers} aria-label="Show layers" title="Layers" onClick={p.onToggleLayers}>
+          <SidebarLeftIcon />
+        </button>
         <button
           type="button"
           className="tool"
@@ -33,6 +56,13 @@ export function Toolbar(p: Props) {
         </button>
         <button type="button" className="tool" aria-label="Open image" title="Open image (Ctrl O)" onClick={p.onOpen}>
           <PhotoIcon />
+        </button>
+        <span className="toolbar-sep" aria-hidden="true" />
+        <button type="button" className="tool" aria-label="Undo" title="Undo (Ctrl Z)" disabled={!p.canUndo} onClick={p.onUndo}>
+          <UndoIcon />
+        </button>
+        <button type="button" className="tool" aria-label="Redo" title="Redo (Ctrl Shift Z)" disabled={!p.canRedo} onClick={p.onRedo}>
+          <RedoIcon />
         </button>
       </div>
 
@@ -56,9 +86,7 @@ export function Toolbar(p: Props) {
         <button type="button" className="tool" aria-label="Copy link to these settings" title="Copy link to these settings" onClick={p.onShare}>
           <ShareIcon />
         </button>
-        <button type="button" className="tool" aria-label="Export PNG" title="Export PNG (Ctrl E)" disabled={!p.canExport} onClick={p.onExport}>
-          <ExportIcon />
-        </button>
+        <ExportMenu onExport={p.onExport} onBatch={p.onBatch} canExport={p.canExport} />
         <button
           type="button"
           className="tool"
@@ -71,5 +99,57 @@ export function Toolbar(p: Props) {
         </button>
       </div>
     </header>
+  );
+}
+
+function ExportMenu({ onExport, onBatch, canExport }: { onExport: () => void; onBatch: () => void; canExport: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <div ref={ref} className="menu-anchor">
+      <button type="button" className="tool" aria-label="Export" title="Export" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <ExportIcon />
+      </button>
+      {open && (
+        <div className="menu right" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-item"
+            disabled={!canExport}
+            onClick={() => {
+              setOpen(false);
+              onExport();
+            }}
+          >
+            <span className="menu-name">Export PNG</span>
+            <span className="menu-desc">Save this image as you see it. Ctrl E</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-item"
+            onClick={() => {
+              setOpen(false);
+              onBatch();
+            }}
+          >
+            <span className="menu-name">Batch export…</span>
+            <span className="menu-desc">Apply this look to many images at once.</span>
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

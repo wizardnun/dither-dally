@@ -1,4 +1,14 @@
-import { FAMILY_LABELS, PIXEL_SIZE_RANGE, type AlgorithmDefinition, type ColorSettings, type Params } from "@dither-dally/core";
+import {
+  EFFECT_CATEGORY_LABELS,
+  FAMILY_LABELS,
+  PIXEL_SIZE_RANGE,
+  getAlgorithm,
+  getEffect,
+  type ColorSettings,
+  type Layer,
+  type PaletteRef,
+  type Params,
+} from "@dither-dally/core";
 import { Canvas } from "./Canvas.tsx";
 import { ControlField } from "./ControlField.tsx";
 import { ChevronIcon, DiceIcon, DocIcon, FolderIcon, LinkIcon } from "./icons.tsx";
@@ -6,13 +16,14 @@ import { PalettePicker } from "./PalettePicker.tsx";
 import { Row, Section, Segmented, SliderRow } from "./ui.tsx";
 
 interface Props {
-  algorithm: AlgorithmDefinition;
+  layer: Layer;
   thumbnail: ImageData | null;
   onOpenStyles: () => void;
-  params: Params;
-  onParam: (id: string, value: Params[string]) => void;
-  paletteId: string;
-  onPalette: (id: string) => void;
+  onParam: (layerId: string, key: string, value: Params[string]) => void;
+  onResetLayer: (layerId: string) => void;
+  palette: PaletteRef;
+  onPalette: (ref: PaletteRef) => void;
+  onExtract: (count: number) => void;
   color: ColorSettings;
   onColor: (c: ColorSettings) => void;
   pixelSize: number;
@@ -24,11 +35,76 @@ interface Props {
   onLoadPreset: () => void;
 }
 
+/** Shows the selected layer's settings, then document-wide output and preset controls. */
 export function Inspector(p: Props) {
-  const { algorithm } = p;
-  const diffusion = algorithm.family === "error-diffusion";
+  const { layer } = p;
   return (
     <div className="inspector-scroll">
+      {layer.kind === "dither" ? <DitherSections {...p} layer={layer} /> : <EffectSections {...p} layer={layer} />}
+
+      <Section title="Output">
+        <SliderRow
+          id="pixel-size"
+          label="Pixel size"
+          min={PIXEL_SIZE_RANGE.min}
+          max={PIXEL_SIZE_RANGE.max}
+          step={1}
+          value={p.pixelSize}
+          unit="×"
+          onChange={p.onPixelSize}
+        />
+        <Row label="Seed" htmlFor="seed">
+          <div className="seed">
+            <input
+              id="seed"
+              className="text-field"
+              type="number"
+              value={p.seed}
+              onChange={(e) => p.onSeed(Math.trunc(Number(e.target.value)) >>> 0)}
+            />
+            <button type="button" className="icon-btn" aria-label="Random seed" title="Random seed" onClick={() => p.onSeed(Math.floor(Math.random() * 1e6))}>
+              <DiceIcon size={16} />
+            </button>
+          </div>
+        </Row>
+        <p className="hint">The seed drives everything random: noise styles, grain, glitches and Voronoi layouts.</p>
+      </Section>
+
+      <Section title="Preset">
+        <div className="button-row">
+          <button type="button" className="push" onClick={p.onCopyLink}>
+            <LinkIcon size={14} /> Copy link
+          </button>
+          <button type="button" className="push" onClick={p.onSavePreset}>
+            <DocIcon size={14} /> Save
+          </button>
+          <button type="button" className="push" onClick={p.onLoadPreset}>
+            <FolderIcon size={14} /> Load
+          </button>
+        </div>
+        <p className="hint">Links and presets hold all your layers and settings, never your image.</p>
+      </Section>
+    </div>
+  );
+}
+
+function SettingsList({ layer, onParam }: { layer: Layer; onParam: Props["onParam"] }) {
+  const controls = layer.kind === "dither" ? getAlgorithm(layer.algorithm).controls : getEffect(layer.effect).controls;
+  if (!controls.length) return <p className="hint">This {layer.kind === "dither" ? "style" : "effect"} has no settings of its own.</p>;
+  return (
+    <>
+      {controls.map((c) => (
+        <ControlField key={`${layer.id}:${c.id}`} control={c} value={layer.params[c.id]} onChange={(v) => onParam(layer.id, c.id, v)} />
+      ))}
+    </>
+  );
+}
+
+function DitherSections(p: Props & { layer: Extract<Layer, { kind: "dither" }> }) {
+  const algorithm = getAlgorithm(p.layer.algorithm);
+  const diffusion = algorithm.family === "error-diffusion";
+  return (
+    <>
       <header className="inspector-head">
         <button type="button" className="style-picker" onClick={p.onOpenStyles} title="Browse styles (Ctrl K)">
           <span className="style-picker-thumb">
@@ -49,17 +125,12 @@ export function Inspector(p: Props) {
       </header>
 
       <Section title="Settings">
-        {algorithm.controls.length ? (
-          algorithm.controls.map((c) => (
-            <ControlField key={`${algorithm.id}:${c.id}`} control={c} value={p.params[c.id]} onChange={(v) => p.onParam(c.id, v)} />
-          ))
-        ) : (
-          <p className="hint">This algorithm has no settings of its own.</p>
-        )}
+        <SettingsList layer={p.layer} onParam={p.onParam} />
+        <ResetButton onClick={() => p.onResetLayer(p.layer.id)} />
       </Section>
 
       <Section title="Palette">
-        <PalettePicker value={p.paletteId} onChange={p.onPalette} />
+        <PalettePicker value={p.palette} onChange={p.onPalette} onExtract={p.onExtract} />
       </Section>
 
       <Section title="Colour">
@@ -90,51 +161,34 @@ export function Inspector(p: Props) {
           OKLab picks colours the way your eye sees them.{" "}
           {diffusion
             ? "Linear keeps true brightness; midtones come out darker than the classic look."
-            : "Diffusion space only applies to error-diffusion algorithms."}
+            : "Diffusion space only applies to error-diffusion styles."}
         </p>
       </Section>
+    </>
+  );
+}
 
-      <Section title="Output">
-        <SliderRow
-          id="pixel-size"
-          label="Pixel size"
-          min={PIXEL_SIZE_RANGE.min}
-          max={PIXEL_SIZE_RANGE.max}
-          step={1}
-          value={p.pixelSize}
-          unit="×"
-          onChange={p.onPixelSize}
-        />
-        <Row label="Seed" htmlFor="seed">
-          <div className="seed">
-            <input
-              id="seed"
-              className="text-field"
-              type="number"
-              value={p.seed}
-              onChange={(e) => p.onSeed(Math.trunc(Number(e.target.value)) >>> 0)}
-            />
-            <button type="button" className="icon-btn" aria-label="Random seed" title="Random seed" onClick={() => p.onSeed(Math.floor(Math.random() * 1e6))}>
-              <DiceIcon size={16} />
-            </button>
-          </div>
-        </Row>
+function EffectSections(p: Props & { layer: Extract<Layer, { kind: "effect" }> }) {
+  const effect = getEffect(p.layer.effect);
+  return (
+    <>
+      <header className="inspector-head">
+        <span className="style-picker-family">{EFFECT_CATEGORY_LABELS[effect.category]} effect</span>
+        <h2 className="effect-title">{effect.name}</h2>
+        <p>{effect.summary}</p>
+      </header>
+      <Section title="Settings">
+        <SettingsList layer={p.layer} onParam={p.onParam} />
+        {effect.controls.length > 0 && <ResetButton onClick={() => p.onResetLayer(p.layer.id)} />}
       </Section>
+    </>
+  );
+}
 
-      <Section title="Preset">
-        <div className="button-row">
-          <button type="button" className="push" onClick={p.onCopyLink}>
-            <LinkIcon size={14} /> Copy link
-          </button>
-          <button type="button" className="push" onClick={p.onSavePreset}>
-            <DocIcon size={14} /> Save
-          </button>
-          <button type="button" className="push" onClick={p.onLoadPreset}>
-            <FolderIcon size={14} /> Load
-          </button>
-        </div>
-        <p className="hint">Links and presets hold your settings, never your image.</p>
-      </Section>
-    </div>
+function ResetButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="link-btn" onClick={onClick}>
+      Reset to defaults
+    </button>
   );
 }

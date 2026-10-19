@@ -42,6 +42,7 @@ export function getAlgorithm(id: string): AlgorithmDefinition {
   return a;
 }
 
-export function defaultParams(algorithm: AlgorithmDefinition): Params {
-  return Object.fromEntries(algorithm.controls.map((c) => [c.id, c.default]));
+/** Default control values for an algorithm or effect. */
+export function defaultParams(def: Pick<AlgorithmDefinition, "controls">): Params {
+  return Object.fromEntries(def.controls.map((c) => [c.id, c.default]));
 }

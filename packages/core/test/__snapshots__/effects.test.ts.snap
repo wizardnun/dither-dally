@@ -1,0 +1,23 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`adjust > matches the golden output 1`] = `"9d047fc639cafa1a"`;
+
+exports[`bloom > matches the golden output 1`] = `"1640aee3879933f1"`;
+
+exports[`blur > matches the golden output 1`] = `"dc6864331a11e84b"`;
+
+exports[`chromatic-split > matches the golden output 1`] = `"0b998b4e06ad220a"`;
+
+exports[`grain > matches the golden output 1`] = `"9b8dda81ca7c0ed4"`;
+
+exports[`invert > matches the golden output 1`] = `"a07b9fe60f12a4a5"`;
+
+exports[`row-shift > matches the golden output 1`] = `"9d047fc639cafa1a"`;
+
+exports[`scanlines > matches the golden output 1`] = `"a0aaddc4bc45e1b5"`;
+
+exports[`sharpen > matches the golden output 1`] = `"e889c1f7e212a5fb"`;
+
+exports[`tint > matches the golden output 1`] = `"de49513532b7fcf8"`;
+
+exports[`vignette > matches the golden output 1`] = `"3e77be3083260c72"`;

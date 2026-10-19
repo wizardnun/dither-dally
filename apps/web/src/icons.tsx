@@ -136,6 +136,40 @@ export const SearchIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const EyeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" />
+    <circle cx="10" cy="10" r="2.2" />
+  </Icon>
+);
+
+export const EyeOffIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.5 6.6C3.3 7.8 2.5 10 2.5 10s2.8 5 7.5 5c1.4 0 2.6-.4 3.6-1M8 5.3c.6-.2 1.3-.3 2-.3 4.7 0 7.5 5 7.5 5s-.6 1.1-1.7 2.3" />
+    <path d="M3 3l14 14" />
+  </Icon>
+);
+
+export const TrashIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 6h12M8 6V4.5h4V6M5.5 6l.7 10a1.5 1.5 0 0 0 1.5 1.4h4.6a1.5 1.5 0 0 0 1.5-1.4l.7-10" />
+  </Icon>
+);
+
+export const UndoIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M7 4.5 3.5 8 7 11.5" />
+    <path d="M3.5 8h8a4.5 4.5 0 0 1 0 9H9" />
+  </Icon>
+);
+
+export const RedoIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M13 4.5 16.5 8 13 11.5" />
+    <path d="M16.5 8h-8a4.5 4.5 0 0 0 0 9H11" />
+  </Icon>
+);
+
 export const FolderIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M2.8 6.2A1.7 1.7 0 0 1 4.5 4.5h3.3l1.7 1.7h6a1.7 1.7 0 0 1 1.7 1.7v6.4a1.7 1.7 0 0 1-1.7 1.7h-11a1.7 1.7 0 0 1-1.7-1.7z" />
