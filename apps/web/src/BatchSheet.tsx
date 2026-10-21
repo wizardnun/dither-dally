@@ -6,7 +6,7 @@ import { createRenderWorker, renderOnce } from "./useDither.ts";
 
 interface Props {
   files: File[];
-  job: { layers: Layer[]; palette: RGB[]; seed: number; color: ColorSettings; pixelSize: number };
+  job: { layers: Layer[]; palette: RGB[]; seed: number; color: ColorSettings; pixelSize: number; gpu: boolean };
   suffix: string;
   onClose: () => void;
   onDone: (message: string, error?: boolean) => void;

@@ -43,7 +43,15 @@ export { inShape, type GridShape } from "./cells.ts";
 export { hilbertPoint } from "./riemersma.ts";
 export { EFFECTS, EFFECT_CATEGORY_LABELS, gaussianBlur, getEffect } from "./effects.ts";
 export { extractPalette } from "./extract.ts";
-export { runPipeline, runUntilDither, scaleLayers, type PipelineSettings } from "./pipeline.ts";
+export {
+  layerSeed,
+  runPipeline,
+  runPipelineAsync,
+  runUntilDither,
+  scaleLayers,
+  type LayerAccelerator,
+  type PipelineSettings,
+} from "./pipeline.ts";
 export { DEFAULT_STEADY, SteadyDither, type SteadyOptions } from "./steady.ts";
 export { CELL_H, CELL_W, FONT_CHARS, coverage, glyph, type Glyph } from "./font.ts";
 export {

@@ -55,3 +55,27 @@ describe("removeLayer", () => {
     expect(removeLayer(s, "d")).toBe(s);
   });
 });
+
+describe("runPipelineAsync", () => {
+  it("matches runPipeline when nothing is accelerated, and uses what the accelerator returns", async () => {
+    const { runPipeline, runPipelineAsync } = await import("../src/pipeline.ts");
+    const { DEFAULT_COLOR } = await import("../src/colorspace.ts");
+    const { getPalette } = await import("../src/palettes.ts");
+    const { testImage } = await import("./fixtures.ts");
+    const s = { layers: stack(), palette: getPalette("cga-4").colors, seed: 3, color: DEFAULT_COLOR };
+    const cpu = runPipeline(testImage(), s);
+    const none = await runPipelineAsync(testImage(), s, async () => null);
+    expect(none.accelerated).toBe(0);
+    expect(none.output.data).toEqual(cpu.data);
+    // An accelerator that takes over the tint layer: its output is what flows on.
+    const marker = { width: 0, height: 0, data: new Uint8ClampedArray(0) };
+    const seen: string[] = [];
+    const some = await runPipelineAsync(testImage(), s, async (layer, input) => {
+      seen.push(layer.id);
+      return layer.id === "v" ? marker : layer.id === "t" ? input : null;
+    });
+    expect(seen).toEqual(["a", "d", "t", "v"]);
+    expect(some.accelerated).toBe(2);
+    expect(some.output).toBe(marker);
+  });
+});

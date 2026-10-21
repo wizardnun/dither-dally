@@ -120,6 +120,8 @@ export interface VideoExportJob {
   size: "preview" | "full";
   /** Keep dots steady between frames; sizes are in preview pixels and scale with the export. */
   steady?: SteadyOptions;
+  /** Run what can on the GPU, where available. */
+  gpu?: boolean;
 }
 
 /** Output size of a video export, kept even as H.264 requires. */
@@ -194,7 +196,7 @@ export function exportVideo(job: VideoExportJob, onProgress: (fraction: number) 
           process: async (sample) => {
             sample.draw(workCtx, 0, 0, w, h);
             const frame = workCtx.getImageData(0, 0, w, h);
-            const result = await renderOnce(worker, { source: frame, layers, palette: job.palette, seed: job.seed, color: job.color, steady });
+            const result = await renderOnce(worker, { source: frame, layers, palette: job.palette, seed: job.seed, color: job.color, steady, gpu: job.gpu });
             smallCtx.putImageData(result, 0, 0);
             // A fresh canvas per frame, so the encoder never sees a frame overwritten mid-flight.
             const out = new OffscreenCanvas(outW, outH);

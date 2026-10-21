@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Dither Dally GPU check</title>
+    <style>
+      body { font: 13px/1.5 ui-monospace, Menlo, monospace; margin: 24px; }
+      .fail { color: #c00; }
+    </style>
+  </head>
+  <body>
+    <h1>GPU check</h1>
+    <p>Runs every GPU layer on the CPU and the GPU and compares them. Results also land in <code>window.gpuCheck</code>.</p>
+    <pre id="out">Running…</pre>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

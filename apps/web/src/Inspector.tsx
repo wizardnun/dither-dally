@@ -42,6 +42,10 @@ type Props = Omit<EffectListProps, "onShowStyle"> & {
   pixelSize: number;
   onPixelSize: (n: number) => void;
   isVideo: boolean;
+  /** Null while still checking. */
+  gpuAvailable: boolean | null;
+  useGpu: boolean;
+  onUseGpu: (on: boolean) => void;
   steadyDots: boolean;
   onSteadyDots: (on: boolean) => void;
   seed: number;
@@ -225,6 +229,17 @@ function OutputTab(p: Props) {
           </div>
         </Row>
         <p className="hint">The seed drives everything random: noise styles, grain, glitches and Voronoi layouts.</p>
+        {p.gpuAvailable === false ? (
+          <p className="hint">GPU rendering isn't available in this browser, so everything runs on the processor.</p>
+        ) : (
+          <SwitchRow
+            id="use-gpu"
+            label="Use GPU"
+            checked={p.useGpu}
+            onChange={p.onUseGpu}
+            help="Runs ordered, halftone, line and hatch styles, and Blur, Sharpen and Bloom, on your graphics card: up to 50× faster on big images and video. Error diffusion and the rest stay on the processor."
+          />
+        )}
       </Section>
 
       <Section title="Preset">

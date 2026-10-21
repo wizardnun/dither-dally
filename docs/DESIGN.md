@@ -420,23 +420,31 @@ the 216-colour palette made every style ~500 ms at 1600×900.
   Identical results to a full scan, ties included (tested on ~1M random
   lookups); out-of-grid values fall back to the scan. 216 colours at
   1600×900: Floyd–Steinberg 530 → 126 ms, Bayer 523 → 94 ms.
-- **WebGPU prototype (branch `webgpu-prototype`):** `apps/web/src/gpu.ts`
-  runs tiled-threshold dithering (Bayer, blue noise) as one compute shader,
-  using the same tile as the CPU (`thresholdTile`). End to end, including
-  upload and readback, in Chrome on Apple Metal:
-
-  | Size | CPU | GPU | Speed-up |
-  |---|---|---|---|
-  | 800×450 | 11–46 ms | 1.4–6 ms | 7–11× |
-  | 1600×900 | 32–133 ms | 3.5–10 ms | 5–17× |
-  | 3840×2160 | 183–669 ms | 15–40 ms | 8–23× |
-
-  Output matches the CPU exactly for 1-bit and 216 colours; with EGA 16,
-  ~0.02% of pixels differ, all exact ties (the two choices' distances agree
-  to ~1e-15), which float32 breaks differently from float64.
-- **Not wired into the app yet.** Previews are already fast at 800×450;
-  the gain matters for full-size and 4K video export. Error diffusion, the
-  default, can't use it (each pixel depends on earlier ones).
+- **WebGPU (shipped):** `apps/web/src/gpu.ts` runs the layers whose
+  pixels are independent: Bayer, blue noise, white noise, Halftone, Wave
+  lines, Rings, Spiral and Crosshatch (one compute shader: the style's rank
+  in WGSL, then the nearest palette colour), and Blur, Sharpen and Bloom
+  (the same three-box Gaussian as the CPU). Core's `runPipelineAsync` offers
+  each layer to it; anything it declines (error diffusion, the other
+  styles, OKLab matching, images too big for a GPU buffer) runs on the CPU,
+  and steady dots works the same either way. The render worker handles one
+  request at a time so frames stay in order.
+- It's on by default where WebGPU exists (a "Use GPU" switch on the Output
+  tab, remembered per browser) and used for previews and every export; the
+  zoom box shows "· GPU" when it did work.
+- **Checked against the CPU** by `npm run gpu-check -w @dither-dally/web`
+  (a browser page; Node has no WebGPU): dither layers differ in at most
+  0.03% of pixels (exact ties and float32 threshold boundaries), effects by
+  at most ±1 in under 0.01%. A 4000×3000 full-size Halftone export differed
+  in 36 of 12 million pixels.
+- **Speed, Chrome on Apple Metal**, per layer at 3840×2160: threshold
+  styles 12–54× faster (Halftone 710 → 17 ms, Crosshatch 985 → 20 ms),
+  effects ~20× (Blur 955 → 48 ms); white noise only 3–5× because its random
+  numbers come from the CPU. End to end, a 90-frame 2560×1440 video export
+  took 3.2 s instead of 7.1 s (Halftone) and 3.3 s instead of 11.2 s
+  (Crosshatch); decoding and H.264 encoding are the rest of the time.
+- Playwright's WebKit and headless Firefox 158 reported no WebGPU adapter;
+  the app fell back to the CPU cleanly and says so on the Output tab.
 
 ### Testing video
 

@@ -16,7 +16,7 @@ import {
 interface Props {
   file: File;
   info: VideoInfo;
-  job: { layers: Layer[]; palette: RGB[]; seed: number; color: ColorSettings; pixelSize: number };
+  job: { layers: Layer[]; palette: RGB[]; seed: number; color: ColorSettings; pixelSize: number; gpu: boolean };
   name: string;
   steadyDots: boolean;
   onSteadyDots: (on: boolean) => void;

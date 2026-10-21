@@ -25,6 +25,9 @@ algorithm and a palette, tune it live, export.
   patterns and effects keep their proportions.
 - **Batch export:** apply one look to a whole folder of images, at preview
   size or full size.
+- **Fast:** where the browser supports WebGPU, ordered, halftone, line and
+  hatch styles and the heavier effects run on the graphics card, up to 50×
+  faster on big images and video.
 - **Private:** your images never leave your device. Everything runs in the browser.
 - **Shareable:** the link always holds your current settings. Send it and
   others get the exact look (on their own image). Save and load preset files too.
@@ -55,6 +58,7 @@ npm install
 npm run dev        # start the web app at http://localhost:5173
 npm test           # run the core test suite
 npm run typecheck  # type-check every package
+npm run gpu-check -w @dither-dally/web   # compare GPU and CPU output in a browser
 npm run build      # production build of the web app
 npm run preview    # serve the production build (tests offline mode)
 node scripts/make-icons.mjs   # regenerate the app icons

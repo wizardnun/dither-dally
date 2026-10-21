@@ -10,11 +10,15 @@ export interface RenderJob {
   color: ColorSettings;
   /** Video frames only: keep dots steady from one frame to the next. */
   steady?: SteadyOptions;
+  /** Run what can on the GPU, where available. */
+  gpu?: boolean;
 }
 
 export interface RenderResult {
   image: ImageData | null;
   ms: number | null;
+  /** Whether the GPU did any of the work. */
+  gpu: boolean;
   error: string | null;
   busy: boolean;
 }
@@ -46,6 +50,7 @@ export function renderOnce(worker: Worker, job: Omit<RenderJob, "source"> & { so
       seed: job.seed,
       color: job.color,
       steady: job.steady,
+      gpu: job.gpu,
     };
     worker.postMessage(req, [buffer]);
   });
@@ -59,7 +64,7 @@ export function renderOnce(worker: Worker, job: Omit<RenderJob, "source"> & { so
 export function useRender(job: RenderJob): RenderResult {
   const workerRef = useRef<Worker | null>(null);
   const latest = useRef(0);
-  const [result, setResult] = useState<RenderResult>({ image: null, ms: null, error: null, busy: false });
+  const [result, setResult] = useState<RenderResult>({ image: null, ms: null, gpu: false, error: null, busy: false });
 
   useEffect(() => {
     const worker = createRenderWorker();
@@ -68,7 +73,7 @@ export function useRender(job: RenderJob): RenderResult {
       if (res.requestId !== latest.current) return;
       if (res.ok) {
         const image = new ImageData(new Uint8ClampedArray(res.buffer), res.width, res.height);
-        setResult({ image, ms: res.ms, error: null, busy: false });
+        setResult({ image, ms: res.ms, gpu: res.gpu, error: null, busy: false });
       } else {
         setResult((r) => ({ ...r, error: res.error, busy: false }));
       }
@@ -77,16 +82,16 @@ export function useRender(job: RenderJob): RenderResult {
     return () => worker.terminate();
   }, []);
 
-  const { source, layers, palette, seed, color, steady } = job;
+  const { source, layers, palette, seed, color, steady, gpu } = job;
   useEffect(() => {
     const worker = workerRef.current;
     if (!worker || !source) return;
     const requestId = ++latest.current;
     const buffer = source.data.slice().buffer;
-    const req: RenderRequest = { requestId, width: source.width, height: source.height, buffer, layers, palette, seed, color, steady };
+    const req: RenderRequest = { requestId, width: source.width, height: source.height, buffer, layers, palette, seed, color, steady, gpu };
     setResult((r) => ({ ...r, busy: true }));
     worker.postMessage(req, [buffer]);
-  }, [source, layers, palette, seed, color, steady]);
+  }, [source, layers, palette, seed, color, steady, gpu]);
 
   return result;
 }

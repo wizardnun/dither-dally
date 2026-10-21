@@ -65,6 +65,36 @@ const PHONE_MAX = 560;
 /** Share of the window height the bottom sheet takes on phones. */
 const SHEET_SHARE = 0.5;
 
+/** Whether to use the GPU: on by default, remembered in this browser, and only once WebGPU is confirmed. */
+function useGpuSetting() {
+  const [wanted, setWanted] = useState(() => {
+    try {
+      return localStorage.getItem("dither-dally:gpu") !== "off";
+    } catch {
+      return true;
+    }
+  });
+  const [available, setAvailable] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    (navigator.gpu?.requestAdapter() ?? Promise.resolve(null))
+      .then((adapter) => live && setAvailable(adapter !== null))
+      .catch(() => live && setAvailable(false));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const set = (on: boolean) => {
+    setWanted(on);
+    try {
+      localStorage.setItem("dither-dally:gpu", on ? "on" : "off");
+    } catch {
+      // Storage blocked: the choice lasts for this visit.
+    }
+  };
+  return { on: wanted && available === true, wanted, available, set };
+}
+
 /** The window size, kept up to date so the layout follows resizes and rotation. */
 function useViewport() {
   const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
@@ -98,6 +128,7 @@ export function App() {
   const [videoExportOpen, setVideoExportOpen] = useState(false);
   /** Keep dots still between video frames where the picture doesn't change. */
   const [steadyDots, setSteadyDots] = useState(true);
+  const gpu = useGpuSetting();
   const playback = useRef<AbortController | null>(null);
   /** Increments per seek, so a slow frame fetch can't overwrite a newer one. */
   const seekToken = useRef(0);
@@ -137,6 +168,7 @@ export function App() {
     seed: doc.seed,
     color: doc.color,
     steady: video && steadyDots ? DEFAULT_STEADY : undefined,
+    gpu: gpu.on,
   });
   const thumbnails = useThumbnails(thumbSource, doc.layers, palette, doc.seed, doc.color);
   const status = useStatus(result, playing, previewStyle && getAlgorithm(previewStyle).name);
@@ -388,7 +420,7 @@ export function App() {
     say(`Rendering ${fullSize.width} × ${fullSize.height}…`);
     const worker = createRenderWorker();
     try {
-      const image = await renderOnce(worker, { source: full, layers, palette, seed: doc.seed, color: doc.color });
+      const image = await renderOnce(worker, { source: full, layers, palette, seed: doc.seed, color: doc.color, gpu: gpu.on });
       exportPng(image, doc.pixelSize, `${fileName}-${dither.algorithm}-full.png`);
       say(`Saved ${fullSize.width} × ${fullSize.height} PNG.`);
     } catch (err) {
@@ -537,7 +569,7 @@ export function App() {
             <VideoExportSheet
               file={video.file}
               info={video.info}
-              job={{ layers: doc.layers, palette, seed: doc.seed, color: doc.color, pixelSize: doc.pixelSize }}
+              job={{ layers: doc.layers, palette, seed: doc.seed, color: doc.color, pixelSize: doc.pixelSize, gpu: gpu.on }}
               name={`${fileName}-${dither.algorithm}`}
               steadyDots={steadyDots}
               onSteadyDots={setSteadyDots}
@@ -602,6 +634,9 @@ export function App() {
               pixelSize={doc.pixelSize}
               onPixelSize={(n) => update((d) => ({ ...d, pixelSize: n }), "pixelSize")}
               isVideo={video !== null}
+              gpuAvailable={gpu.available}
+              useGpu={gpu.wanted}
+              onUseGpu={gpu.set}
               steadyDots={steadyDots}
               onSteadyDots={setSteadyDots}
               seed={doc.seed}
@@ -616,7 +651,7 @@ export function App() {
         {batchFiles && (
           <BatchSheet
             files={batchFiles}
-            job={{ layers: doc.layers, palette, seed: doc.seed, color: doc.color, pixelSize: doc.pixelSize }}
+            job={{ layers: doc.layers, palette, seed: doc.seed, color: doc.color, pixelSize: doc.pixelSize, gpu: gpu.on }}
             suffix={dither.algorithm}
             onClose={() => setBatchFiles(null)}
             onDone={(message, error) => {

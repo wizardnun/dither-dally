@@ -22,12 +22,6 @@ function hashId(id: string): number {
   return h >>> 0;
 }
 
-/**
- * Runs the layer stack top to bottom; disabled layers are skipped. Effect
- * layers get a seed mixed from the document seed and their own id, so two
- * Grain layers don't produce identical noise and reordering layers doesn't
- * change either one's pattern.
- */
 /** The image as it arrives at the dither layer: the input run through every enabled layer above it. */
 export function runUntilDither(input: PixelBuffer, s: PipelineSettings): PixelBuffer {
   const at = s.layers.findIndex((l) => l.kind === "dither");
@@ -58,17 +52,64 @@ export function scaleLayers(layers: readonly Layer[], factor: number): Layer[] {
   });
 }
 
+/** The seed an effect layer runs with: the document seed mixed with the layer's own id. */
+export function layerSeed(layer: Layer, seed: number): number {
+  return (seed ^ hashId(layer.id)) >>> 0;
+}
+
+/** One layer on the CPU. */
+function runLayer(layer: Layer, input: PixelBuffer, s: PipelineSettings): PixelBuffer {
+  if (layer.kind === "dither") {
+    return getAlgorithm(layer.algorithm).run(input, s.palette, layer.params, { seed: s.seed, color: s.color, glyphs: s.glyphs });
+  }
+  return getEffect(layer.effect).run(input, layer.params, { seed: layerSeed(layer, s.seed) });
+}
+
+/** Applies steady dots to a dither layer's output, when asked for. */
+function steadied(layer: Layer, input: PixelBuffer, output: PixelBuffer, s: PipelineSettings): PixelBuffer {
+  if (layer.kind !== "dither" || !s.steady || getAlgorithm(layer.algorithm).keepsColours) return output;
+  return s.steady.apply(input, output);
+}
+
+/**
+ * Runs the layer stack top to bottom; disabled layers are skipped. Effect
+ * layers get a seed mixed from the document seed and their own id, so two
+ * Grain layers don't produce identical noise and reordering layers doesn't
+ * change either one's pattern.
+ */
 export function runPipeline(input: PixelBuffer, s: PipelineSettings): PixelBuffer {
   let current = input;
   for (const layer of s.layers) {
     if (!layer.enabled) continue;
-    if (layer.kind === "dither") {
-      const algorithm = getAlgorithm(layer.algorithm);
-      const dithered = algorithm.run(current, s.palette, layer.params, { seed: s.seed, color: s.color, glyphs: s.glyphs });
-      current = s.steady && !algorithm.keepsColours ? s.steady.apply(current, dithered) : dithered;
-    } else {
-      current = getEffect(layer.effect).run(current, layer.params, { seed: (s.seed ^ hashId(layer.id)) >>> 0 });
-    }
+    current = steadied(layer, current, runLayer(layer, current, s), s);
   }
   return current;
+}
+
+/**
+ * Runs one layer somewhere faster (a GPU) and resolves with its output, or
+ * with null to have the CPU run it instead. It must produce what the CPU
+ * would, apart from floating-point ties.
+ */
+export type LayerAccelerator = (layer: Layer, input: PixelBuffer, s: PipelineSettings) => Promise<PixelBuffer | null>;
+
+/**
+ * runPipeline, but each layer is offered to `accelerate` first. Layers it
+ * declines run on the CPU; steady dots and every other rule are the same.
+ * Resolves with the output and how many layers were accelerated.
+ */
+export async function runPipelineAsync(
+  input: PixelBuffer,
+  s: PipelineSettings,
+  accelerate: LayerAccelerator,
+): Promise<{ output: PixelBuffer; accelerated: number }> {
+  let current = input;
+  let accelerated = 0;
+  for (const layer of s.layers) {
+    if (!layer.enabled) continue;
+    const fast = await accelerate(layer, current, s);
+    if (fast) accelerated++;
+    current = steadied(layer, current, fast ?? runLayer(layer, current, s), s);
+  }
+  return { output: current, accelerated };
 }

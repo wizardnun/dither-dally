@@ -44,5 +44,6 @@ export function useStatus(result: RenderResult, playing: boolean, previewName: s
   if (previewName) return `Preview: ${previewName}`;
   if (slow) return "Rendering…";
   if (ms === null) return "";
-  return playing ? `${Math.round(ms)} ms/frame` : `${Math.round(ms)} ms`;
+  const time = playing ? `${Math.round(ms)} ms/frame` : `${Math.round(ms)} ms`;
+  return result.gpu ? `${time} · GPU` : time;
 }
