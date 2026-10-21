@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import {
   EFFECTS,
   EFFECT_CATEGORY_LABELS,
@@ -13,6 +12,7 @@ import {
 import { Canvas } from "./Canvas.tsx";
 import { ResetButton, SettingsList } from "./ControlField.tsx";
 import { ChevronIcon, EyeIcon, EyeOffIcon, MoreIcon, PlusIcon } from "./icons.tsx";
+import { FloatingMenu, MenuItem, menuBelow, NARROW_MENU, type MenuPosition } from "./Menu.tsx";
 
 export type Side = "before" | "after";
 
@@ -334,93 +334,5 @@ function EffectCard({ layer, index, stackLength, ditherIndex, expanded, dropBefo
         </div>
       )}
     </div>
-  );
-}
-
-/** Menu widths in px, matching `.menu` and `.menu.narrow`. */
-const MENU = 280;
-const NARROW_MENU = 200;
-
-type MenuPosition = { top: number; left: number; anchor: HTMLElement };
-
-/** Below `el`, right-aligned to it and kept inside the window. */
-function menuBelow(el: HTMLElement, width = MENU): MenuPosition {
-  const r = el.getBoundingClientRect();
-  return { top: r.bottom + 6, left: Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8)), anchor: el };
-}
-
-/**
- * A menu rendered at the top level, so the panel's clipping and blur don't
- * affect it. Closes on Escape or a click elsewhere.
- */
-function FloatingMenu({
-  at,
-  label,
-  onClose,
-  narrow,
-  children,
-}: {
-  at: MenuPosition;
-  label: string;
-  onClose: () => void;
-  narrow?: boolean;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    ref.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      // A click on the button that opened the menu toggles it there instead.
-      if (!ref.current?.contains(t) && !at.anchor.contains(t)) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("pointerdown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, []);
-  return createPortal(
-    <div
-      ref={ref}
-      className={`menu floating${narrow ? " narrow" : ""}`}
-      role="menu"
-      aria-label={label}
-      style={{ top: at.top, left: at.left }}
-    >
-      {children}
-    </div>,
-    document.body,
-  );
-}
-
-function MenuItem({
-  onClick,
-  close,
-  disabled,
-  danger,
-  children,
-}: {
-  onClick: () => void;
-  close: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      className={`menu-item${danger ? " danger" : ""}`}
-      disabled={disabled}
-      onClick={() => {
-        close();
-        onClick();
-      }}
-    >
-      <span className="menu-name">{children}</span>
-    </button>
   );
 }

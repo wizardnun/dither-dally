@@ -35,6 +35,7 @@ import { FULL_MAX_SIDE, exportPng, loadImageFile, sampleImage, thumbnailData, to
 import type { Side } from "./EffectList.tsx";
 import { Inspector, type TextAction } from "./Inspector.tsx";
 import { downloadPreset, hashForPreset, initialPreset, noticeFor, presetFromFile, presetFromHash } from "./presetLink.ts";
+import { projectFileBlob, projectStore, readProjectFile, thumbnailBlob } from "./projects.ts";
 import { Toolbar } from "./Toolbar.tsx";
 import { createRenderWorker, renderOnce, useRender } from "./useDither.ts";
 import { useHistory } from "./useHistory.ts";
@@ -48,8 +49,35 @@ import { VideoTimeline } from "./VideoTimeline.tsx";
 const VideoExportSheet = lazy(() => import("./VideoExportSheet.tsx"));
 const loadVideo = () => import("./video.ts");
 import { Viewer, type CompareMode } from "./Viewer.tsx";
+import { Welcome } from "./Welcome.tsx";
 
 const VIDEO_FILE = /\.(mp4|m4v|mov|webm|mkv|ogv)$/i;
+/** sessionStorage key for the project open in this tab, so a reload reopens it. */
+const OPEN_PROJECT_KEY = "dither-dally:open-project";
+
+/** Covers the app while a reload reopens the project; says "Opening…" only if it takes a moment. */
+function RestoreCover() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 400);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="restore-cover" role="status" aria-live="polite">
+      {slow && "Opening…"}
+    </div>
+  );
+}
+
+function reopenId(): string | null {
+  try {
+    return sessionStorage.getItem(OPEN_PROJECT_KEY);
+  } catch {
+    return null; // storage blocked: start fresh
+  }
+}
+/** Project files saved from Dither Dally. */
+const PROJECT_FILE = /\.dally$/i;
 /** Palette files that can be dropped onto the window (Paint.NET .txt only via Import). */
 const PALETTE_FILE = /\.(gpl|pal|hex)$/i;
 const isVideoFile = (f: File) => f.type.startsWith("video/") || VIDEO_FILE.test(f.name);
@@ -112,6 +140,22 @@ export function App() {
   const doc = history.state;
   const [original, setOriginal] = useState<Source>(() => sampleImage());
   const [fileName, setFileName] = useState("Sample");
+  /** The project being autosaved in this browser; null for the sample, or when saving isn't possible. */
+  const [projectId, setProjectId] = useState<string | null>(null);
+  /** The file the current image or video came from, for project files. Null for the sample. */
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  /** Whether this browser can keep projects; null while checking. */
+  const [storageAvailable, setStorageAvailable] = useState<boolean | null>(null);
+  /** The start screen; skipped when a reload is reopening this tab's project. */
+  const [welcome, setWelcome] = useState(() => !reopenId());
+  /**
+   * Reopening this tab's project after a reload: "loading" until it's open,
+   * then "rendering" until its first result is ready. A plain cover hides
+   * the app meanwhile, so the sample never flashes up.
+   */
+  const [restoring, setRestoring] = useState<"loading" | "rendering" | null>(() => (reopenId() ? "loading" : null));
+  /** Opened from a shared link: its settings apply to whatever gets opened. */
+  const [fromLink] = useState(() => new URLSearchParams(window.location.hash.replace(/^#/, "")).has("p"));
   /** The effect card open in the inspector; one at a time. */
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [mode, setMode] = useState<CompareMode>("result");
@@ -136,6 +180,7 @@ export function App() {
     start.notice ? { text: start.notice, id: 0 } : null,
   );
   const imageInput = useRef<HTMLInputElement>(null);
+  const projectInput = useRef<HTMLInputElement>(null);
   const presetInput = useRef<HTMLInputElement>(null);
   const batchInput = useRef<HTMLInputElement>(null);
   const paletteInput = useRef<HTMLInputElement>(null);
@@ -172,6 +217,8 @@ export function App() {
   });
   const thumbnails = useThumbnails(thumbSource, doc.layers, palette, doc.seed, doc.color);
   const status = useStatus(result, playing, previewStyle && getAlgorithm(previewStyle).name);
+  /** The latest result, but only if it was rendered from the image now open (never a previous image's). */
+  const current = result.source === source ? result.image : null;
 
   function say(text: string, error = false) {
     setNotice({ text, error, id: Date.now() });
@@ -269,8 +316,8 @@ export function App() {
 
   // ----- files -----
 
-  async function openFile(file: File | undefined) {
-    if (!file) return;
+  /** Shows an image or video. Resolves with whether it opened. */
+  async function openSource(file: File): Promise<boolean> {
     stopPlayback();
     if (isVideoFile(file)) {
       try {
@@ -282,21 +329,156 @@ export function App() {
         setVideo(session);
         setVideoTime(session.info.start);
         setOriginal(first);
-        setFileName(file.name.replace(/\.[^.]+$/, ""));
+        return true;
       } catch (err) {
         say(err instanceof Error ? err.message : `Couldn't open "${file.name}".`, true);
+        return false;
       }
-      return;
     }
     try {
       setOriginal(await loadImageFile(file));
-      setFileName(file.name.replace(/\.[^.]+$/, ""));
       video?.dispose();
       setVideo(null);
+      return true;
     } catch {
       say(`Couldn't open "${file.name}". Try a PNG, JPEG, GIF or WebP image, or an MP4 or WebM video.`, true);
+      return false;
     }
   }
+
+  // ----- projects -----
+
+  /** The latest document, for code that runs after an await. */
+  const docRef = useRef(doc);
+  docRef.current = doc;
+
+  useEffect(() => {
+    void projectStore.available().then(setStorageAvailable);
+    // A reload in the same tab reopens the project that was open (sessionStorage is per tab).
+    const reopen = reopenId();
+    if (reopen) void openRecent(reopen, { quiet: true });
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (projectId) sessionStorage.setItem(OPEN_PROJECT_KEY, projectId);
+      else sessionStorage.removeItem(OPEN_PROJECT_KEY);
+    } catch {
+      // Storage blocked: a reload just starts fresh.
+    }
+  }, [projectId]);
+
+  /**
+   * Opens an image or video. With no project id it starts a new project,
+   * saved in this browser from then on; `preset` replaces the settings
+   * (reopening a project, or a project file).
+   */
+  async function openFile(file: File | undefined, opts: { projectId?: string; preset?: Preset; name?: string } = {}): Promise<boolean> {
+    if (!file) return false;
+    if (!(await openSource(file))) return false;
+    setWelcome(false);
+    const name = opts.name ?? file.name.replace(/\.[^.]+$/, "");
+    if (opts.preset) applyPreset(opts.preset);
+    setFileName(name);
+    setSourceFile(file);
+    if (opts.projectId) {
+      setProjectId(opts.projectId);
+      void projectStore.update(opts.projectId, {}).catch(() => {}); // move it to the top of Recent
+      return true;
+    }
+    setProjectId(null);
+    if (!(await projectStore.available())) return true;
+    try {
+      setProjectId(await projectStore.create(name, opts.preset ?? docRef.current, file));
+    } catch {
+      say("Couldn't save this project in the browser (storage may be full). Use Save project file to keep it.", true);
+    }
+    return true;
+  }
+
+  async function openRecent(id: string, { quiet = false } = {}) {
+    try {
+      const { name, preset, file } = await projectStore.load(id);
+      if (!(await openFile(file, { projectId: id, preset, name }))) throw new Error(`Couldn't open "${name}".`);
+      // Reopened after a reload: the project's own settings replace the link's, so drop that notice.
+      if (quiet) {
+        setNotice(null);
+        setRestoring("rendering");
+      }
+    } catch (err) {
+      if (quiet) {
+        setRestoring(null);
+        setWelcome(true);
+      } else say(err instanceof Error ? err.message : "Couldn't open that project.", true);
+    }
+  }
+
+  async function removeRecent(id: string) {
+    try {
+      await projectStore.remove(id);
+      if (id === projectId) setProjectId(null);
+    } catch {
+      say("Couldn't remove that project.", true);
+    }
+  }
+
+  async function openProjectFile(file: File | undefined) {
+    if (!file) return;
+    try {
+      const project = await readProjectFile(file);
+      await openFile(project.source, { preset: project.preset, name: project.name });
+      say(noticeFor(`Opened "${project.name}".`, project.warnings));
+    } catch (err) {
+      say(err instanceof Error ? err.message : `Couldn't open "${file.name}".`, true);
+    }
+  }
+
+  async function saveProjectFile() {
+    // The sample has no file of its own: save it as a PNG.
+    const source =
+      sourceFile ??
+      new File([await new Promise<Blob>((resolve) => (original as HTMLCanvasElement).toBlob((b) => resolve(b!), "image/png"))], "Sample.png", {
+        type: "image/png",
+      });
+    const url = URL.createObjectURL(projectFileBlob(fileName, doc, source));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${fileName}.dally`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    say(`Saved "${fileName}.dally". Open it with Open → Open project file, or drop it onto the window.`);
+  }
+
+  /** Any file from a picker, drop or paste: project, preset, palette, or image/video. */
+  function openAny(file: File | undefined) {
+    if (!file) return;
+    if (PROJECT_FILE.test(file.name)) void openProjectFile(file);
+    else if (file.type === "application/json" || file.name.endsWith(".json")) void openPresetFile(file);
+    else if (PALETTE_FILE.test(file.name)) void openPaletteFile(file);
+    else void openFile(file);
+  }
+
+  // Lift the reload cover once the reopened project's first render is on screen (or a render failed).
+  useEffect(() => {
+    if (restoring === "rendering" && (current || result.error)) setRestoring(null);
+  }, [restoring, current, result.error]);
+
+  // Autosave: settings and a thumbnail, a moment after the last change. Not while a video plays.
+  const autosaveFailed = useRef(false);
+  useEffect(() => {
+    if (!projectId || playing) return;
+    const image = !previewStyle ? current : null;
+    const t = setTimeout(async () => {
+      try {
+        await projectStore.update(projectId, { preset: doc, ...(image ? { thumbnail: await thumbnailBlob(image) } : {}) });
+        autosaveFailed.current = false;
+      } catch {
+        if (!autosaveFailed.current) say("Couldn't autosave (browser storage may be full). Use Save project file to keep your work.", true);
+        autosaveFailed.current = true;
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [doc, projectId, playing, current]);
 
   // ----- video -----
 
@@ -404,7 +586,7 @@ export function App() {
   }
 
   function exportImage() {
-    if (result.image && !previewStyle) exportPng(result.image, doc.pixelSize, `${fileName}-${dither.algorithm}.png`);
+    if (current && !previewStyle) exportPng(current, doc.pixelSize, `${fileName}-${dither.algorithm}.png`);
   }
 
   /**
@@ -433,9 +615,11 @@ export function App() {
 
   // ----- keyboard -----
 
-  const latest = useRef({ exportImage, undo: history.undo, redo: history.redo, togglePlay: () => {} });
+  const latest = useRef({ exportImage, saveProjectFile, openAny, undo: history.undo, redo: history.redo, togglePlay: () => {} });
   latest.current = {
     exportImage,
+    saveProjectFile,
+    openAny,
     undo: history.undo,
     redo: history.redo,
     togglePlay: () => (video ? (playing ? stopPlayback() : play()) : undefined),
@@ -443,7 +627,7 @@ export function App() {
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
-      if (file) void openFile(file);
+      if (file) latest.current.openAny(file);
     };
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -462,6 +646,9 @@ export function App() {
       } else if (key === "e") {
         e.preventDefault();
         latest.current.exportImage();
+      } else if (key === "s") {
+        e.preventDefault();
+        void latest.current.saveProjectFile();
       } else if (key === "k") {
         e.preventDefault();
         setGalleryOpen((o) => !o);
@@ -514,9 +701,7 @@ export function App() {
         e.preventDefault();
         setDragging(false);
         const file = e.dataTransfer.files[0];
-        if (file && (file.type === "application/json" || file.name.endsWith(".json"))) void openPresetFile(file);
-        else if (file && PALETTE_FILE.test(file.name)) void openPaletteFile(file);
-        else void openFile(file);
+        openAny(file);
       }}
     >
       <Toolbar
@@ -528,7 +713,9 @@ export function App() {
         onToggleInspector={() => setShowInspector((s) => !s)}
         mode={mode}
         onMode={setMode}
+        onProjects={() => setWelcome(true)}
         onOpen={() => imageInput.current?.click()}
+        onSaveProject={() => void saveProjectFile()}
         onShare={() => void copyLink()}
         onExport={exportImage}
         fullSize={fullSize}
@@ -540,7 +727,7 @@ export function App() {
           setVideoExportOpen(true);
         }}
         isVideo={video !== null}
-        canExport={!!result.image}
+        canExport={!!current}
         onTextAction={getAlgorithm(dither.algorithm).family === "text" ? (a) => void textAction(a) : undefined}
         onUndo={history.undo}
         onRedo={history.redo}
@@ -549,7 +736,7 @@ export function App() {
       />
 
       <div className="workspace">
-        <Viewer original={source} result={result.image} pixelSize={doc.pixelSize} mode={mode} insets={insets} status={status} />
+        <Viewer original={source} result={current} pixelSize={doc.pixelSize} mode={mode} insets={insets} status={status} />
 
         {video && (
           <VideoTimeline
@@ -661,9 +848,24 @@ export function App() {
           />
         )}
 
+        {restoring && <RestoreCover />}
+
+        {welcome && (
+          <Welcome
+            available={storageAvailable}
+            fromLink={fromLink}
+            listRecent={projectStore.list}
+            onOpenRecent={(id) => void openRecent(id)}
+            onRemoveRecent={removeRecent}
+            onOpenFile={() => imageInput.current?.click()}
+            onOpenProjectFile={() => projectInput.current?.click()}
+            onSample={() => setWelcome(false)}
+          />
+        )}
+
         {dragging && (
           <div className="drop-overlay" aria-hidden="true">
-            <div className="drop-card">Drop an image, a video, a preset or a palette</div>
+            <div className="drop-card">Drop an image, a video, a project, a preset or a palette</div>
           </div>
         )}
 
@@ -683,9 +885,16 @@ export function App() {
       <input
         ref={imageInput}
         type="file"
-        accept="image/*,video/*"
+        accept="image/*,video/*,.dally"
         hidden
-        onChange={(e) => (void openFile(e.target.files?.[0]), (e.target.value = ""))}
+        onChange={(e) => (openAny(e.target.files?.[0]), (e.target.value = ""))}
+      />
+      <input
+        ref={projectInput}
+        type="file"
+        accept=".dally"
+        hidden
+        onChange={(e) => (void openProjectFile(e.target.files?.[0]), (e.target.value = ""))}
       />
       <input
         ref={paletteInput}

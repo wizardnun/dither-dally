@@ -93,3 +93,14 @@ export { mulberry32 } from "./random.ts";
 export { PALETTES, getPalette, type NamedPalette } from "./palettes.ts";
 export { PaletteFileError, parsePaletteFile, toGpl, type ParsedPalette } from "./paletteFile.ts";
 export { ALGORITHMS, FAMILY_LABELS, TONAL_FAMILIES, defaultParams, getAlgorithm } from "./registry.ts";
+export {
+  decodeProjectHeader,
+  encodeProjectHeader,
+  packProject,
+  projectHeaderLength,
+  PROJECT_PREFIX_BYTES,
+  PROJECT_VERSION,
+  ProjectError,
+  unpackProject,
+  type ProjectInfo,
+} from "./project.ts";

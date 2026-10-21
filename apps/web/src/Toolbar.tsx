@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ExportIcon,
+  HomeIcon,
   LinkIcon,
   PhotoIcon,
   RedoIcon,
@@ -24,7 +25,11 @@ interface Props {
   onToggleInspector: () => void;
   mode: CompareMode;
   onMode: (m: CompareMode) => void;
+  /** Back to the welcome screen: recent projects and ways to start. */
+  onProjects: () => void;
+  /** File picker for images, videos and project files. */
   onOpen: () => void;
+  onSaveProject: () => void;
   onShare: () => void;
   onExport: () => void;
   /** Size of a full-size export, or null when the preview already is full size. */
@@ -47,7 +52,10 @@ export function Toolbar(p: Props) {
   return (
     <header className="toolbar">
       <div className="toolbar-group">
-        <button type="button" className="tool" aria-label="Open image" title="Open image (Ctrl O)" onClick={p.onOpen}>
+        <button type="button" className="tool" aria-label="Projects" title="Projects: recent work and ways to start" onClick={p.onProjects}>
+          <HomeIcon />
+        </button>
+        <button type="button" className="tool" aria-label="Open" title="Open an image, video or project file (Ctrl O)" onClick={p.onOpen}>
           <PhotoIcon />
         </button>
         <span className="toolbar-sep" aria-hidden="true" />
@@ -85,6 +93,7 @@ export function Toolbar(p: Props) {
           exportingFull={p.exportingFull}
           onExportFull={p.onExportFull}
           onBatch={p.onBatch}
+          onSaveProject={p.onSaveProject}
           onExportVideo={p.onExportVideo}
           onTextAction={p.onTextAction}
           isVideo={p.isVideo}
@@ -118,6 +127,7 @@ export function Toolbar(p: Props) {
 
 interface ExportMenuProps {
   onExport: () => void;
+  onSaveProject: () => void;
   fullSize: { width: number; height: number } | null;
   exportingFull: boolean;
   onExportFull: () => void;
@@ -129,7 +139,7 @@ interface ExportMenuProps {
 }
 
 function ExportMenu(p: ExportMenuProps) {
-  const { onExport, fullSize, exportingFull, onExportFull, onBatch, onExportVideo, onTextAction, isVideo, canExport } = p;
+  const { onExport, fullSize, exportingFull, onExportFull, onBatch, onExportVideo, onTextAction, isVideo, canExport, onSaveProject } = p;
   /** Where to show the menu (below the button, right-aligned to it), or null when closed. */
   const [at, setAt] = useState<{ top: number; right: number } | null>(null);
   const open = at !== null;
@@ -246,6 +256,19 @@ function ExportMenu(p: ExportMenuProps) {
             >
               <span className="menu-name">Batch export…</span>
               <span className="menu-desc">Apply this look to many images at once.</span>
+            </button>
+            <div className="menu-sep" role="separator" />
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={() => {
+                close();
+                onSaveProject();
+              }}
+            >
+              <span className="menu-name">Save project file…</span>
+              <span className="menu-desc">Your image and every setting in one .dally file, to back up or open elsewhere. Ctrl S</span>
             </button>
           </div>,
           document.body,

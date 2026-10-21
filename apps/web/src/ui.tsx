@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronIcon } from "./icons.tsx";
 
 /** Collapsible inspector section with a disclosure chevron. */
@@ -159,4 +159,23 @@ export function SwitchRow({ id, label, help, checked, onChange }: { id: string; 
       {help && <p className="hint">{help}</p>}
     </div>
   );
+}
+
+/**
+ * Object URLs for blobs (thumbnails), keyed by id: each made once on first
+ * use and all freed by `free()` or when the component unmounts.
+ */
+export function useObjectUrls() {
+  const urls = useRef(new Map<string, string>());
+  const free = () => {
+    urls.current.forEach((u) => URL.revokeObjectURL(u));
+    urls.current.clear();
+  };
+  useEffect(() => free, []);
+  const get = (id: string, blob: Blob) => {
+    let url = urls.current.get(id);
+    if (!url) urls.current.set(id, (url = URL.createObjectURL(blob)));
+    return url;
+  };
+  return { get, free };
 }

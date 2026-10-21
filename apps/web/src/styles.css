@@ -8,6 +8,9 @@
   --panel: rgba(246, 246, 246, 0.74);
   /* Sheets sit over busy dithered images, so they're nearly opaque to keep their text readable. */
   --sheet: rgba(246, 246, 246, 0.95);
+  /* The welcome screen is fully opaque: nothing behind it should show through. */
+  --welcome: #f6f6f6;
+  --welcome-side: #ebebed;
   --panel-edge: rgba(0, 0, 0, 0.14);
   --panel-shadow: 0 12px 32px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
   --control: #ffffff;
@@ -50,6 +53,8 @@
     --canvas: #121213;
     --panel: rgba(40, 40, 42, 0.72);
     --sheet: rgba(40, 40, 42, 0.95);
+    --welcome: #2a2a2c;
+    --welcome-side: #222224;
     --panel-edge: rgba(255, 255, 255, 0.1);
     --panel-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
     --control: rgba(255, 255, 255, 0.09);
@@ -1423,6 +1428,33 @@ canvas.overlay {
   width: 200px;
 }
 
+.menu-sep {
+  height: 0.5px;
+  margin: 4px 8px;
+  background: var(--separator);
+}
+
+/* Remove button on a recent project (welcome screen), shown on hover. */
+.recent-remove {
+  position: absolute;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0;
+}
+
+.recent-remove:hover {
+  background: var(--hover);
+  color: var(--label);
+}
+
 .menu-item.danger {
   color: var(--danger);
 }
@@ -1632,9 +1664,10 @@ canvas.overlay {
 /* ---------- overlays ---------- */
 
 .drop-overlay {
-  position: absolute;
+  /* Fixed, so it shows over the welcome screen too. */
+  position: fixed;
   inset: 10px;
-  z-index: 8;
+  z-index: 60;
   display: grid;
   place-items: center;
   border: 2px dashed var(--accent);
@@ -1697,6 +1730,251 @@ canvas.overlay {
 
 .toast button:hover {
   background: var(--hover);
+}
+
+/* Covers the whole app while a reload reopens the project, so nothing flashes first. */
+.restore-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  /* The page's own background, so loading → cover → app has no colour change. */
+  background: var(--window);
+  color: var(--secondary);
+}
+
+/* ---------- welcome screen ---------- */
+
+.welcome-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  /* Solid: the editor behind shouldn't show through. */
+  background: var(--canvas);
+}
+
+.welcome {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  width: min(920px, 100%);
+  height: min(560px, 100%);
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--welcome);
+  box-shadow: 0 0 0 0.5px var(--panel-edge), 0 30px 80px rgba(0, 0, 0, 0.35);
+  animation: sheet-in 0.2s ease-out;
+}
+
+.welcome-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 44px;
+  text-align: center;
+}
+
+.welcome-icon {
+  width: 112px;
+  height: 112px;
+  border-radius: 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.welcome-start h1 {
+  margin: 18px 0 4px;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.welcome-tagline {
+  margin: 0 0 28px;
+  max-width: 34ch;
+  color: var(--secondary);
+}
+
+.welcome-actions {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.welcome-action {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--accent);
+  text-align: left;
+}
+
+.welcome-action:hover {
+  background: var(--hover);
+}
+
+.welcome-action > span {
+  display: grid;
+  gap: 1px;
+  color: var(--label);
+}
+
+.welcome-action strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.welcome-action > span > span {
+  font-size: 12px;
+  color: var(--secondary);
+}
+
+.welcome-note {
+  margin: 18px 0 0;
+  font-size: 12px;
+  color: var(--secondary);
+}
+
+.welcome-recent {
+  overflow-y: auto;
+  padding: 14px;
+  background: var(--welcome-side);
+  border-left: 0.5px solid var(--separator);
+}
+
+.welcome-recent ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.welcome-recent li {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.welcome-project {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 8px 36px 8px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.welcome-project:hover,
+.welcome-project:focus-visible {
+  background: var(--accent);
+  color: var(--on-accent);
+  outline: none;
+}
+
+.welcome-thumb {
+  width: 64px;
+  height: 44px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--seg-bg);
+  box-shadow: 0 0 0 0.5px var(--panel-edge);
+}
+
+.welcome-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.welcome-project-text {
+  display: grid;
+  min-width: 0;
+}
+
+.welcome-project-name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-project-meta {
+  font-size: 12px;
+  color: var(--secondary);
+}
+
+.welcome-project:hover .welcome-project-meta,
+.welcome-project:focus-visible .welcome-project-meta {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.welcome-recent li:hover .recent-remove,
+.welcome-recent .recent-remove:focus-visible {
+  opacity: 1;
+}
+
+.welcome-recent li:hover .recent-remove {
+  color: var(--on-accent);
+}
+
+.welcome-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  color: var(--secondary);
+}
+
+@media (max-width: 700px) {
+  .welcome {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    height: auto;
+    max-height: 100%;
+  }
+
+  .welcome-start {
+    padding: 28px 20px 16px;
+  }
+
+  .welcome-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+  }
+
+  .welcome-start h1 {
+    font-size: 24px;
+  }
+
+  .welcome-tagline {
+    margin-bottom: 16px;
+  }
+
+  .welcome-recent {
+    border-left: 0;
+    border-top: 0.5px solid var(--separator);
+  }
 }
 
 /* ---------- scrollbars ---------- */

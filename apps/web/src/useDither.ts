@@ -19,6 +19,8 @@ export interface RenderResult {
   ms: number | null;
   /** Whether the GPU did any of the work. */
   gpu: boolean;
+  /** The source image this result was rendered from, so a result for a previous image is never shown with a new one. */
+  source: ImageData | null;
   error: string | null;
   busy: boolean;
 }
@@ -64,7 +66,9 @@ export function renderOnce(worker: Worker, job: Omit<RenderJob, "source"> & { so
 export function useRender(job: RenderJob): RenderResult {
   const workerRef = useRef<Worker | null>(null);
   const latest = useRef(0);
-  const [result, setResult] = useState<RenderResult>({ image: null, ms: null, gpu: false, error: null, busy: false });
+  const [result, setResult] = useState<RenderResult>({ image: null, ms: null, gpu: false, source: null, error: null, busy: false });
+  /** The source of the latest request: only the latest response is kept, so this is what it was rendered from. */
+  const latestSource = useRef<ImageData | null>(null);
 
   useEffect(() => {
     const worker = createRenderWorker();
@@ -73,7 +77,7 @@ export function useRender(job: RenderJob): RenderResult {
       if (res.requestId !== latest.current) return;
       if (res.ok) {
         const image = new ImageData(new Uint8ClampedArray(res.buffer), res.width, res.height);
-        setResult({ image, ms: res.ms, gpu: res.gpu, error: null, busy: false });
+        setResult({ image, ms: res.ms, gpu: res.gpu, source: latestSource.current, error: null, busy: false });
       } else {
         setResult((r) => ({ ...r, error: res.error, busy: false }));
       }
@@ -87,6 +91,7 @@ export function useRender(job: RenderJob): RenderResult {
     const worker = workerRef.current;
     if (!worker || !source) return;
     const requestId = ++latest.current;
+    latestSource.current = source;
     const buffer = source.data.slice().buffer;
     const req: RenderRequest = { requestId, width: source.width, height: source.height, buffer, layers, palette, seed, color, steady, gpu };
     setResult((r) => ({ ...r, busy: true }));

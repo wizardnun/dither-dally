@@ -528,6 +528,29 @@ panel; each tab holds one kind of thing.
 The model is unchanged: one ordered layer list with exactly one dither
 layer, so presets and links from before keep working.
 
+**Projects and the welcome screen.** Work is kept, never uploaded:
+
+- Opening an image or video starts a project in IndexedDB (`projects.ts`):
+  the source file once, then the settings and a thumbnail about a second
+  after each change (not while a video plays). Two stores, so listing
+  recent projects never loads the sources.
+- A `.dally` project file (`project.ts` in core) is a small header (name,
+  settings, source name and type) followed by the source file unchanged;
+  the header is read on its own, so big video projects open without
+  copying the video. Settings are read like a preset, so older files open.
+- The welcome screen (Pixelmator-style: actions on the left, recent
+  projects on the right) shows on start. A reload in the same tab skips it
+  and reopens that tab's project (`sessionStorage`); a new tab starts at
+  the welcome screen; while it loads, a plain cover hides the app so the
+  sample never flashes up. In the toolbar, Projects (house) returns to the
+  welcome screen and Open goes straight to the file picker (images,
+  videos and .dally files). Save project file is in the Export menu (Ctrl S).
+- Each render result records the image it came from, and the viewer only
+  shows a result for the image now open, so a new image never briefly
+  shows the previous one's dither.
+- Where storage is blocked (some private windows) both say so and point
+  to Save project file.
+
 **Export menu** (toolbar): Export PNG (Ctrl/⌘ E) or Batch export…, which
 asks for images, confirms in a sheet, then writes into a chosen folder where
 the browser supports it (Chromium) or downloads each file otherwise.

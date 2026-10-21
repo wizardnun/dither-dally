@@ -28,6 +28,9 @@ algorithm and a palette, tune it live, export.
 - **Fast:** where the browser supports WebGPU, ordered, halftone, line and
   hatch styles and the heavier effects run on the graphics card, up to 50×
   faster on big images and video.
+- **Projects:** your work saves automatically in the browser and reopens
+  from the welcome screen or the Open menu. Save a .dally project file to
+  back it up or move it to another computer.
 - **Private:** your images never leave your device. Everything runs in the browser.
 - **Shareable:** the link always holds your current settings. Send it and
   others get the exact look (on their own image). Save and load preset files too.

@@ -37,6 +37,14 @@ export const PhotoIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const HomeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3.5 9.2 10 3.8l6.5 5.4" />
+    <path d="M5.2 8v7.2a1.3 1.3 0 0 0 1.3 1.3h7a1.3 1.3 0 0 0 1.3-1.3V8" />
+    <path d="M8.4 16.5v-4.2h3.2v4.2" />
+  </Icon>
+);
+
 export const SplitIcon = (p: IconProps) => (
   <Icon {...p}>
     <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
