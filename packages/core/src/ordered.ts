@@ -1,7 +1,7 @@
 import { type ColorSettings, DEFAULT_COLOR } from "./colorspace.ts";
 import { fieldDither } from "./field.ts";
 import { mulberry32 } from "./random.ts";
-import type { AlgorithmDefinition, Palette, PixelBuffer } from "./types.ts";
+import type { AlgorithmDefinition, Palette, Params, PixelBuffer } from "./types.ts";
 
 /**
  * Bayer index matrix of size n×n (n a power of two), values 0..n²-1.
@@ -216,3 +216,24 @@ export const whiteNoise: AlgorithmDefinition = {
     return thresholdDither(input, palette, ctx.color ?? DEFAULT_COLOR, () => rand() - 0.5);
   },
 };
+
+/**
+ * The repeating rank tile behind Bayer and blue noise, for running them
+ * elsewhere (a GPU shader): `ranks[y * size + x]` is the rank `fieldDither`
+ * uses at (x mod size, y mod size). Null for styles that don't tile.
+ */
+export function thresholdTile(algorithmId: string, params: Params, seed: number): { size: number; ranks: Float64Array } | null {
+  if (algorithmId === "bayer") {
+    const n = Number(params.size ?? 4);
+    const m = bayerMatrix(n);
+    const ranks = new Float64Array(n * n);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) ranks[y * n + x] = (m[y]![x]! + 0.5) / (n * n);
+    return { size: n, ranks };
+  }
+  if (algorithmId === "blue-noise") {
+    const n = Number(params.size ?? 64);
+    const tex = cachedBlueNoise(n, seed);
+    return { size: n, ranks: Float64Array.from(tex, (r) => (r + 0.5) / (n * n)) };
+  }
+  return null;
+}

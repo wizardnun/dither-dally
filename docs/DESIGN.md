@@ -409,6 +409,35 @@ A **Text** family turns images into real characters (`text.ts`, `font.ts`):
   hardware encoders handle widely). Like stills, distance settings scale
   with the frame (`scaleLayers`), and so does the steady-dots block size.
 
+### Performance: palette matching and a WebGPU prototype
+
+CPU timings (Node, same engine as the worker) showed palette size, not the
+style, dominated render time: each pixel scanned every palette colour, so
+the 216-colour palette made every style ~500 ms at 1600×900.
+
+- **Grid search (shipped):** `nearest.ts` splits the matching space into
+  16³ cells, each keeping only the entries that can be nearest inside it.
+  Identical results to a full scan, ties included (tested on ~1M random
+  lookups); out-of-grid values fall back to the scan. 216 colours at
+  1600×900: Floyd–Steinberg 530 → 126 ms, Bayer 523 → 94 ms.
+- **WebGPU prototype (branch `webgpu-prototype`):** `apps/web/src/gpu.ts`
+  runs tiled-threshold dithering (Bayer, blue noise) as one compute shader,
+  using the same tile as the CPU (`thresholdTile`). End to end, including
+  upload and readback, in Chrome on Apple Metal:
+
+  | Size | CPU | GPU | Speed-up |
+  |---|---|---|---|
+  | 800×450 | 11–46 ms | 1.4–6 ms | 7–11× |
+  | 1600×900 | 32–133 ms | 3.5–10 ms | 5–17× |
+  | 3840×2160 | 183–669 ms | 15–40 ms | 8–23× |
+
+  Output matches the CPU exactly for 1-bit and 216 colours; with EGA 16,
+  ~0.02% of pixels differ, all exact ties (the two choices' distances agree
+  to ~1e-15), which float32 breaks differently from float64.
+- **Not wired into the app yet.** Previews are already fast at 800×450;
+  the gain matters for full-size and 4K video export. Error diffusion, the
+  default, can't use it (each pixel depends on earlier ones).
+
 ### Testing video
 
 There is no unit test for the video path (it needs a browser with
