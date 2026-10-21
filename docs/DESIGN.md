@@ -394,8 +394,28 @@ There is no unit test for the video path (it needs a browser with
 WebCodecs). It was verified end to end in headless Edge: a clip with audio
 recorded in the page by MediaRecorder was opened, scrubbed, played, exported
 to MP4 with Bayer applied, and the export re-opened as a valid video with
-its audio track. Not yet tested: Safari and Firefox, very long or high
-resolution videos, variable-frame-rate phone footage.
+its audio track. Not yet tested: very long or high resolution videos,
+variable-frame-rate phone footage.
+
+### Browser support (checked October 2026)
+
+A scripted pass covers loading, the gallery, tabs and effects, reordering
+effects, PNG export, and opening, playing and exporting an MP4, at desktop
+and phone sizes, against the production build:
+
+| Engine | Result |
+|---|---|
+| Chrome (Chromium) | Everything passes. |
+| Safari (Playwright WebKit 18.2) | Everything passes. No `AudioEncoder`, which is fine: export copies the original audio without re-encoding it. |
+| Firefox 158 (driven over WebDriver BiDi) | Everything passes. Its automation can't finish a native mouse drag, so reordering was checked by dispatching the drag events directly. |
+
+Safari needed two fixes in the effect list's drag and drop: `dragenter`
+must be cancelled as well as `dragover`, and `dragleave` arrives without a
+`relatedTarget`, so leaving the list is detected from the pointer position.
+
+**Phones** (< 560 px wide): the inspector is a bottom sheet over half the
+screen and the image fits above it; hold the image to see the original
+(this works on desktop too); pinch to zoom.
 
 ### Phase 3 decisions
 

@@ -262,6 +262,12 @@ canvas.overlay {
   transition: opacity 0.15s;
 }
 
+/* Shown while you hold the image to see the original. */
+.tag.peek-tag {
+  left: 10px;
+  z-index: 3;
+}
+
 .tag.left {
   left: 10px;
 }
@@ -1749,7 +1755,17 @@ canvas.overlay {
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 559px) {
+  /* The inspector becomes a bottom sheet; its height is set from the app so the image can fit above it. */
+  .panel.inspector {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    border-radius: 14px 14px 0 0;
+  }
+
   .toolbar {
     grid-template-columns: auto 1fr auto;
     gap: 6px;

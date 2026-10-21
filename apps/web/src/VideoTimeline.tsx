@@ -10,8 +10,8 @@ interface Props {
   onPlay: () => void;
   onPause: () => void;
   onSeek: (t: number) => void;
-  /** Horizontal space taken by side panels, so the bar spans the visible canvas. */
-  insets: { left: number; right: number };
+  /** Space taken by panels (and, on phones, the bottom sheet), so the bar spans the visible canvas. */
+  insets: { left: number; right: number; bottom?: number };
 }
 
 /** Play/pause, current time and a scrubber, floating above the zoom control. */
@@ -19,7 +19,7 @@ export function VideoTimeline({ start, duration, time, playing, onPlay, onPause,
   const end = Math.max(start + 0.001, duration);
   const fill = ((time - start) / (end - start)) * 100;
   return (
-    <div className="timeline" style={{ left: insets.left + 16, right: insets.right + 16 }} onPointerDown={(e) => e.stopPropagation()}>
+    <div className="timeline" style={{ left: insets.left + 16, right: insets.right + 16, bottom: 56 + (insets.bottom ?? 0) }} onPointerDown={(e) => e.stopPropagation()}>
       <button
         type="button"
         className="hud-btn"

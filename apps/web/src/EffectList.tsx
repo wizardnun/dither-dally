@@ -110,14 +110,19 @@ export function EffectList(p: EffectListProps) {
       ) : (
         <div
           className="fx-list"
+          // Safari only treats an element as a drop target if dragenter is cancelled too (Chrome is lenient).
+          onDragEnter={(e) => dragging && e.preventDefault()}
           onDragOver={(e) => {
             if (!dragging) return;
             e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
             // Over the gap below the last card: drop at the end.
             if (e.target === e.currentTarget) setDropIndex(p.layers.length);
           }}
           onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropIndex(null);
+            // Only when the pointer really leaves the list. Safari sends no relatedTarget, so check the position.
+            const r = e.currentTarget.getBoundingClientRect();
+            if (e.clientX <= r.left || e.clientX >= r.right || e.clientY <= r.top || e.clientY >= r.bottom) setDropIndex(null);
           }}
           onDrop={(e) => {
             e.preventDefault();
@@ -165,6 +170,8 @@ function dragOverHalf(onHalf: (after: boolean) => void) {
   return (e: DragEvent<HTMLElement>) => {
     if (!dragging) return;
     e.preventDefault();
+    // Safari refuses the drop unless this matches the drag's effectAllowed ("move").
+    e.dataTransfer.dropEffect = "move";
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
     onHalf(e.clientY > rect.top + rect.height / 2);

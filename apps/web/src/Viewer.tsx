@@ -13,14 +13,16 @@ const GAP = 16;
 const MARGIN = 40;
 /** Space reserved at the bottom for the zoom control. */
 const HUD_SPACE = 56;
+/** Holding still on the image this long shows the original until you let go. */
+const PEEK_DELAY = 300;
 
 interface Props {
   original: ImageData;
   result: ImageData | null;
   pixelSize: number;
   mode: CompareMode;
-  /** Width covered by floating panels on each side, so the image centres in the visible area. */
-  insets: { left: number; right: number };
+  /** Space covered by floating panels (and, on phones, the bottom sheet), so the image centres in the visible area. */
+  insets: { left: number; right: number; bottom?: number };
   status: string;
 }
 
@@ -33,6 +35,12 @@ export function Viewer({ original, result, pixelSize, mode, insets, status }: Pr
   const drag = useRef<{ kind: "pan" | "split"; startX: number; startY: number; ox: number; oy: number; moved: boolean } | null>(null);
   const [panning, setPanning] = useState(false);
   const splitBox = useRef<HTMLDivElement>(null);
+  /** True while you hold still on the image: the original is shown instead of the result. */
+  const [peek, setPeek] = useState(false);
+  const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Touch points on the stage, for pinch zoom. */
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchDistance = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     const el = stageRef.current;
@@ -50,7 +58,8 @@ export function Viewer({ original, result, pixelSize, mode, insets, status }: Pr
   const columns = mode === "side" ? 2 : 1;
   const visibleW = Math.max(0, size.w - insets.left - insets.right);
   const availW = visibleW - MARGIN * 2 - GAP * (columns - 1);
-  const availH = size.h - MARGIN * 2 - HUD_SPACE;
+  const bottomInset = insets.bottom ?? 0;
+  const availH = size.h - MARGIN * 2 - HUD_SPACE - bottomInset;
   const fitScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(availW / (imgW * columns), availH / imgH)));
   const scale = zoom === "fit" ? fitScale : zoom;
 
@@ -61,7 +70,7 @@ export function Viewer({ original, result, pixelSize, mode, insets, status }: Pr
   }, [zoom]);
 
   const centerX = insets.left + visibleW / 2;
-  const centerY = (size.h - HUD_SPACE) / 2;
+  const centerY = (size.h - HUD_SPACE - bottomInset) / 2;
   const dispW = Math.round(imgW * scale);
   const dispH = Math.round(imgH * scale);
   const totalW = dispW * columns + GAP * (columns - 1);
@@ -119,18 +128,43 @@ export function Viewer({ original, result, pixelSize, mode, insets, status }: Pr
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  function stopPeek() {
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+    peekTimer.current = null;
+    setPeek(false);
+  }
+
   function onPointerDown(e: ReactPointerEvent) {
     if (e.button !== 0) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // A second finger turns the gesture into a pinch.
+    if (pointers.current.size === 2) {
+      drag.current = null;
+      stopPeek();
+      const [a, b] = [...pointers.current.values()];
+      pinchDistance.current = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+      return;
+    }
     const onHandle = (e.target as HTMLElement).closest(".split-handle");
     drag.current = { kind: onHandle ? "split" : "pan", startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y, moved: false };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     if (onHandle) moveSplit(e.clientX);
+    else if (result && mode !== "side") peekTimer.current = setTimeout(() => setPeek(true), PEEK_DELAY);
   }
   function moveSplit(clientX: number) {
     const box = splitBox.current?.getBoundingClientRect();
     if (box) setSplit(Math.min(1, Math.max(0, (clientX - box.left) / box.width)));
   }
   function onPointerMove(e: ReactPointerEvent) {
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2 && pinchDistance.current) {
+      const [a, b] = [...pointers.current.values()];
+      const distance = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+      const rect = stageRef.current!.getBoundingClientRect();
+      zoomTo(scale * (distance / pinchDistance.current), { x: (a!.x + b!.x) / 2 - rect.left, y: (a!.y + b!.y) / 2 - rect.top });
+      pinchDistance.current = distance;
+      return;
+    }
     const d = drag.current;
     if (!d) return;
     if (d.kind === "split") moveSplit(e.clientX);
@@ -140,19 +174,23 @@ export function Viewer({ original, result, pixelSize, mode, insets, status }: Pr
       if (!d.moved && Math.hypot(dx, dy) < 4) return; // a click, not a drag
       if (!d.moved) {
         d.moved = true;
+        stopPeek();
         setPanning(true);
         if (zoom === "fit") setZoom(scale);
       }
       setOffset({ x: d.ox + dx, y: d.oy + dy });
     }
   }
-  function onPointerUp() {
+  function onPointerUp(e: ReactPointerEvent) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinchDistance.current = null;
     drag.current = null;
+    stopPeek();
     setPanning(false);
   }
 
   const boxStyle = { width: dispW, height: dispH };
-  const shown = result ?? original;
+  const shown = peek ? original : (result ?? original);
 
   return (
     <div
@@ -172,7 +210,7 @@ export function Viewer({ original, result, pixelSize, mode, insets, status }: Pr
           {mode === "split" && (
             <div ref={splitBox} className="image-box" style={boxStyle}>
               <Canvas image={shown} label="Result" className="pixels" />
-              {result && (
+              {result && !peek && (
                 <>
                   <Canvas
                     image={original}
@@ -223,10 +261,11 @@ export function Viewer({ original, result, pixelSize, mode, insets, status }: Pr
               <Canvas image={shown} label="Result" className="pixels" />
             </div>
           )}
+          {peek && <span className="tag peek-tag">Original</span>}
         </div>
       )}
 
-      <div className="hud" style={{ left: centerX }} onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <div className="hud" style={{ left: centerX, bottom: 14 + bottomInset }} onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
         <button type="button" className="hud-btn" aria-label="Zoom out" title="Zoom out (Ctrl −)" onClick={zoomOut}>
           <MinusIcon size={14} />
         </button>

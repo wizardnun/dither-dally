@@ -57,7 +57,7 @@ export default function VideoExportSheet({ file, info, job, name, onClose, onDon
       <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="video-title">
         <h2 id="video-title">Export video</h2>
         <p>
-          Every frame of “{file.name}” ({formatTime(info.duration - info.start)}) goes through your layers and is saved as an MP4
+          Every frame of “{file.name}” ({formatTime(info.duration - info.start)}) goes through your style and effects and is saved as an MP4
           {info.hasAudio ? ", keeping the original sound" : ""}. Frames are processed at the preview size, then scaled by the pixel size.
         </p>
         {flickers && (

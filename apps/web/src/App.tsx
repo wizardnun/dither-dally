@@ -59,6 +59,21 @@ type Source = CanvasImageSource & { width: number; height: number };
 const INSPECTOR_SPACE = 300 + 20;
 const GALLERY_SPACE = 500 + 20;
 const WIDE = () => window.innerWidth >= 900;
+/** Below this width the inspector becomes a bottom sheet (matches the CSS). */
+const PHONE_MAX = 560;
+/** Share of the window height the bottom sheet takes on phones. */
+const SHEET_SHARE = 0.5;
+
+/** The window size, kept up to date so the layout follows resizes and rotation. */
+function useViewport() {
+  const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  useEffect(() => {
+    const onResize = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return size;
+}
 
 export function App() {
   const [start] = useState(initialPreset);
@@ -73,6 +88,7 @@ export function App() {
   /** Style shown on the canvas while hovering in the gallery; null shows the chosen one. */
   const [previewStyle, setPreviewStyle] = useState<string | null>(null);
   const [showInspector, setShowInspector] = useState(WIDE);
+  const viewport = useViewport();
   const [dragging, setDragging] = useState(false);
   const [batchFiles, setBatchFiles] = useState<File[] | null>(null);
   const [video, setVideo] = useState<VideoSession | null>(null);
@@ -426,12 +442,16 @@ export function App() {
 
   // ----- layout -----
 
-  const wide = typeof window !== "undefined" && window.innerWidth >= 900;
+  const wide = viewport.width >= 900;
+  const phone = viewport.width < PHONE_MAX;
   const inspectorSpace = showInspector && wide ? INSPECTOR_SPACE : 0;
+  // On phones the inspector is a bottom sheet and the image fits in the space above it.
+  const sheetHeight = phone && showInspector && !galleryOpen ? Math.round(viewport.height * SHEET_SHARE) : 0;
   const insets = {
     left: 0,
     // The gallery takes the inspector's place while open; the image re-fits beside it.
     right: galleryOpen && wide ? GALLERY_SPACE : inspectorSpace,
+    bottom: sheetHeight,
   };
   const effects = doc.layers.filter((l) => l.kind === "effect" && l.enabled).length;
 
@@ -537,7 +557,7 @@ export function App() {
 
         {showInspector && (
           // Hidden rather than unmounted while browsing styles, so it keeps its scroll position.
-          <aside className="panel inspector" aria-label="Inspector" hidden={galleryOpen}>
+          <aside className="panel inspector" aria-label="Inspector" hidden={galleryOpen} style={sheetHeight ? { height: sheetHeight } : undefined}>
             <Inspector
               layers={doc.layers}
               expandedId={expandedId}
