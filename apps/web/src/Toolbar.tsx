@@ -6,7 +6,6 @@ import {
   PhotoIcon,
   RedoIcon,
   SideBySideIcon,
-  SidebarLeftIcon,
   SidebarRightIcon,
   SplitIcon,
   SquareIcon,
@@ -19,8 +18,6 @@ import type { CompareMode } from "./Viewer.tsx";
 interface Props {
   title: string;
   subtitle: string;
-  showLayers: boolean;
-  onToggleLayers: () => void;
   galleryOpen: boolean;
   onToggleGallery: () => void;
   showInspector: boolean;
@@ -46,9 +43,6 @@ export function Toolbar(p: Props) {
   return (
     <header className="toolbar">
       <div className="toolbar-group">
-        <button type="button" className="tool" aria-pressed={p.showLayers} aria-label="Show layers" title="Layers" onClick={p.onToggleLayers}>
-          <SidebarLeftIcon />
-        </button>
         <button type="button" className="tool" aria-label="Open image" title="Open image (Ctrl O)" onClick={p.onOpen}>
           <PhotoIcon />
         </button>

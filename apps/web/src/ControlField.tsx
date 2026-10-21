@@ -1,4 +1,4 @@
-import type { Control, ParamValue } from "@dither-dally/core";
+import { getAlgorithm, getEffect, type Control, type Layer, type ParamValue, type Params } from "@dither-dally/core";
 import { HexField, Row, Segmented, SliderRow, SwitchRow } from "./ui.tsx";
 
 interface Props {
@@ -76,4 +76,35 @@ export function ControlField({ control, value, onChange }: Props) {
       );
     }
   }
+}
+
+/** A layer's own controls, hiding any that don't apply to its current settings. */
+export function SettingsList({ layer, onParam }: { layer: Layer; onParam: (layerId: string, key: string, value: ParamValue) => void }) {
+  const controls = layer.kind === "dither" ? getAlgorithm(layer.algorithm).controls : getEffect(layer.effect).controls;
+  if (!controls.length) return <p className="hint">This {layer.kind === "dither" ? "style" : "effect"} has no settings of its own.</p>;
+  return (
+    <>
+      {controls
+        .filter((c) => isVisible(c, controls, layer.params))
+        .map((c) => (
+          <ControlField key={`${layer.id}:${c.id}`} control={c} value={layer.params[c.id]} onChange={(v) => onParam(layer.id, c.id, v)} />
+        ))}
+    </>
+  );
+}
+
+/** Whether a control applies with the current settings (unset values count as their default). */
+function isVisible(control: Control, controls: readonly Control[], params: Params): boolean {
+  const when = control.visibleWhen;
+  if (!when) return true;
+  const value = params[when.control] ?? controls.find((c) => c.id === when.control)?.default;
+  return value !== undefined && when.is.includes(value);
+}
+
+export function ResetButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="link-btn" onClick={onClick}>
+      Reset to defaults
+    </button>
+  );
 }

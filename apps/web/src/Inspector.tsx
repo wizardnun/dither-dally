@@ -1,34 +1,35 @@
+import { useRef, useState, type KeyboardEvent } from "react";
 import {
-  EFFECT_CATEGORY_LABELS,
   FAMILY_LABELS,
   PIXEL_SIZE_RANGE,
   getAlgorithm,
-  getEffect,
   glyph,
   usableChars,
   type ColorSettings,
-  type Control,
-  type Layer,
+  type DitherLayer,
   type PaletteRef,
-  type Params,
 } from "@dither-dally/core";
 import { Canvas } from "./Canvas.tsx";
-import { ControlField } from "./ControlField.tsx";
+import { ResetButton, SettingsList } from "./ControlField.tsx";
+import { EffectList, type EffectListProps } from "./EffectList.tsx";
 import { ChevronIcon, DiceIcon, DocIcon, FolderIcon, LinkIcon } from "./icons.tsx";
 import { PalettePicker } from "./PalettePicker.tsx";
 import { Row, Section, Segmented, SliderRow } from "./ui.tsx";
 
 export type TextAction = "copy" | "txt" | "html";
 
-interface Props {
-  layer: Layer;
+type Tab = "style" | "effects" | "output";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "style", label: "Style" },
+  { id: "effects", label: "Effects" },
+  { id: "output", label: "Output" },
+];
+
+type Props = Omit<EffectListProps, "onShowStyle"> & {
   /** Width of the working image, for warning when characters would be too small to read. */
   workingWidth: number;
   onTextAction: (action: TextAction) => void;
-  thumbnail: ImageData | null;
   onOpenStyles: () => void;
-  onParam: (layerId: string, key: string, value: Params[string]) => void;
-  onResetLayer: (layerId: string) => void;
   palette: PaletteRef;
   onPalette: (ref: PaletteRef) => void;
   onExtract: (count: number) => void;
@@ -41,84 +42,55 @@ interface Props {
   onCopyLink: () => void;
   onSavePreset: () => void;
   onLoadPreset: () => void;
-}
+};
 
-/** Shows the selected layer's settings, then document-wide output and preset controls. */
+/** Three tabs: the style, the effects around it, and output and preset settings. */
 export function Inspector(p: Props) {
-  const { layer } = p;
-  return (
-    <div className="inspector-scroll">
-      {layer.kind === "dither" ? <DitherSections {...p} layer={layer} /> : <EffectSections {...p} layer={layer} />}
+  const [tab, setTab] = useState<Tab>("style");
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const dither = p.layers.find((l) => l.kind === "dither") as DitherLayer;
+  const effectCount = p.layers.length - 1;
 
-      <Section title="Output">
-        <SliderRow
-          id="pixel-size"
-          label="Pixel size"
-          min={PIXEL_SIZE_RANGE.min}
-          max={PIXEL_SIZE_RANGE.max}
-          step={1}
-          value={p.pixelSize}
-          unit="×"
-          onChange={p.onPixelSize}
-        />
-        <Row label="Seed" htmlFor="seed">
-          <div className="seed">
-            <input
-              id="seed"
-              className="text-field"
-              type="number"
-              value={p.seed}
-              onChange={(e) => p.onSeed(Math.trunc(Number(e.target.value)) >>> 0)}
-            />
-            <button type="button" className="icon-btn" aria-label="Random seed" title="Random seed" onClick={() => p.onSeed(Math.floor(Math.random() * 1e6))}>
-              <DiceIcon size={16} />
-            </button>
-          </div>
-        </Row>
-        <p className="hint">The seed drives everything random: noise styles, grain, glitches and Voronoi layouts.</p>
-      </Section>
+  // Arrow keys move between tabs, as in a native tab bar.
+  function onTabKey(e: KeyboardEvent) {
+    const i = TABS.findIndex((t) => t.id === tab);
+    const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    const t = TABS[(next + TABS.length) % TABS.length]!;
+    setTab(t.id);
+    tabsRef.current?.querySelector<HTMLButtonElement>(`#tab-${t.id}`)?.focus();
+  }
 
-      <Section title="Preset">
-        <div className="button-row">
-          <button type="button" className="push" onClick={p.onCopyLink}>
-            <LinkIcon size={14} /> Copy link
-          </button>
-          <button type="button" className="push" onClick={p.onSavePreset}>
-            <DocIcon size={14} /> Save
-          </button>
-          <button type="button" className="push" onClick={p.onLoadPreset}>
-            <FolderIcon size={14} /> Load
-          </button>
-        </div>
-        <p className="hint">Links and presets hold all your layers and settings, never your image.</p>
-      </Section>
-    </div>
-  );
-}
-
-function SettingsList({ layer, onParam }: { layer: Layer; onParam: Props["onParam"] }) {
-  const controls = layer.kind === "dither" ? getAlgorithm(layer.algorithm).controls : getEffect(layer.effect).controls;
-  if (!controls.length) return <p className="hint">This {layer.kind === "dither" ? "style" : "effect"} has no settings of its own.</p>;
   return (
     <>
-      {controls
-        .filter((c) => isVisible(c, controls, layer.params))
-        .map((c) => (
-          <ControlField key={`${layer.id}:${c.id}`} control={c} value={layer.params[c.id]} onChange={(v) => onParam(layer.id, c.id, v)} />
+      <div ref={tabsRef} className="inspector-tabs segmented" role="tablist" aria-label="Inspector" onKeyDown={onTabKey}>
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            id={`tab-${t.id}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+            {t.id === "effects" && effectCount > 0 && <span className="tab-count">{effectCount}</span>}
+          </button>
         ))}
+      </div>
+      <div className="inspector-scroll" id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`}>
+        {tab === "style" && <StyleTab {...p} layer={dither} />}
+        {tab === "effects" && <EffectList {...p} onShowStyle={() => setTab("style")} />}
+        {tab === "output" && <OutputTab {...p} />}
+      </div>
     </>
   );
 }
 
-/** Whether a control applies with the current settings (unset values count as their default). */
-function isVisible(control: Control, controls: readonly Control[], params: Params): boolean {
-  const when = control.visibleWhen;
-  if (!when) return true;
-  const value = params[when.control] ?? controls.find((c) => c.id === when.control)?.default;
-  return value !== undefined && when.is.includes(value);
-}
-
-function DitherSections(p: Props & { layer: Extract<Layer, { kind: "dither" }> }) {
+function StyleTab(p: Props & { layer: DitherLayer }) {
   const algorithm = getAlgorithm(p.layer.algorithm);
   const diffusion = algorithm.family === "error-diffusion";
   return (
@@ -126,7 +98,7 @@ function DitherSections(p: Props & { layer: Extract<Layer, { kind: "dither" }> }
       <header className="inspector-head">
         <button type="button" className="style-picker" onClick={p.onOpenStyles} title="Browse styles (Ctrl K)">
           <span className="style-picker-thumb">
-            <Canvas image={p.thumbnail} label="" />
+            <Canvas image={p.ditherThumbnail} label="" />
           </span>
           <span className="style-picker-text">
             <span className="style-picker-family">{FAMILY_LABELS[algorithm.family]}</span>
@@ -138,6 +110,14 @@ function DitherSections(p: Props & { layer: Extract<Layer, { kind: "dither" }> }
         {algorithm.reference && (
           <p className="ref">
             {algorithm.reference.author}, {algorithm.reference.year}
+          </p>
+        )}
+        {!p.layer.enabled && (
+          <p className="hint warn">
+            The dither is turned off, so you're seeing the image with only its effects.{" "}
+            <button type="button" className="link-btn" onClick={() => p.onToggle(p.layer.id)}>
+              Turn it on
+            </button>
           </p>
         )}
       </header>
@@ -188,18 +168,50 @@ function DitherSections(p: Props & { layer: Extract<Layer, { kind: "dither" }> }
   );
 }
 
-function EffectSections(p: Props & { layer: Extract<Layer, { kind: "effect" }> }) {
-  const effect = getEffect(p.layer.effect);
+function OutputTab(p: Props) {
   return (
     <>
-      <header className="inspector-head">
-        <span className="style-picker-family">{EFFECT_CATEGORY_LABELS[effect.category]} effect</span>
-        <h2 className="effect-title">{effect.name}</h2>
-        <p>{effect.summary}</p>
-      </header>
-      <Section title="Settings">
-        <SettingsList layer={p.layer} onParam={p.onParam} />
-        {effect.controls.length > 0 && <ResetButton onClick={() => p.onResetLayer(p.layer.id)} />}
+      <Section title="Rendering">
+        <SliderRow
+          id="pixel-size"
+          label="Pixel size"
+          min={PIXEL_SIZE_RANGE.min}
+          max={PIXEL_SIZE_RANGE.max}
+          step={1}
+          value={p.pixelSize}
+          unit="×"
+          onChange={p.onPixelSize}
+        />
+        <Row label="Seed" htmlFor="seed">
+          <div className="seed">
+            <input
+              id="seed"
+              className="text-field"
+              type="number"
+              value={p.seed}
+              onChange={(e) => p.onSeed(Math.trunc(Number(e.target.value)) >>> 0)}
+            />
+            <button type="button" className="icon-btn" aria-label="Random seed" title="Random seed" onClick={() => p.onSeed(Math.floor(Math.random() * 1e6))}>
+              <DiceIcon size={16} />
+            </button>
+          </div>
+        </Row>
+        <p className="hint">The seed drives everything random: noise styles, grain, glitches and Voronoi layouts.</p>
+      </Section>
+
+      <Section title="Preset">
+        <div className="button-row">
+          <button type="button" className="push" onClick={p.onCopyLink}>
+            <LinkIcon size={14} /> Copy link
+          </button>
+          <button type="button" className="push" onClick={p.onSavePreset}>
+            <DocIcon size={14} /> Save
+          </button>
+          <button type="button" className="push" onClick={p.onLoadPreset}>
+            <FolderIcon size={14} /> Load
+          </button>
+        </div>
+        <p className="hint">Links and presets hold your style, effects and settings, never your image.</p>
       </Section>
     </>
   );
@@ -208,7 +220,7 @@ function EffectSections(p: Props & { layer: Extract<Layer, { kind: "effect" }> }
 /** Glyphs are 6 px wide; below that, characters can't be drawn legibly in the image. */
 const MIN_CHAR_PX = 6;
 
-function TextSection(p: Props & { layer: Extract<Layer, { kind: "dither" }> }) {
+function TextSection(p: Props & { layer: DitherLayer }) {
   const cols = Number(p.layer.params.columns ?? 100);
   const charPx = p.workingWidth / cols;
   const maxCols = Math.floor(p.workingWidth / MIN_CHAR_PX);
@@ -250,13 +262,5 @@ function TextSection(p: Props & { layer: Extract<Layer, { kind: "dither" }> }) {
         </p>
       )}
     </Section>
-  );
-}
-
-function ResetButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button type="button" className="link-btn" onClick={onClick}>
-      Reset to defaults
-    </button>
   );
 }

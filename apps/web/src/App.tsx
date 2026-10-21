@@ -26,8 +26,8 @@ import {
 import { BatchSheet } from "./BatchSheet.tsx";
 import { Gallery } from "./Gallery.tsx";
 import { exportPng, loadImageFile, sampleImage, thumbnailData, toImageData } from "./image.ts";
+import type { Side } from "./EffectList.tsx";
 import { Inspector, type TextAction } from "./Inspector.tsx";
-import { LayersPanel, layerTitle } from "./LayersPanel.tsx";
 import { downloadPreset, hashForPreset, initialPreset, noticeFor, presetFromFile, presetFromHash } from "./presetLink.ts";
 import { Toolbar } from "./Toolbar.tsx";
 import { useRender } from "./useDither.ts";
@@ -48,7 +48,6 @@ const isVideoFile = (f: File) => f.type.startsWith("video/") || VIDEO_FILE.test(
 type Source = CanvasImageSource & { width: number; height: number };
 
 /** Panel widths plus margins, used to centre the image in the visible area. */
-const LAYERS_SPACE = 240 + 20;
 const INSPECTOR_SPACE = 300 + 20;
 const GALLERY_SPACE = 500 + 20;
 const WIDE = () => window.innerWidth >= 900;
@@ -59,12 +58,12 @@ export function App() {
   const doc = history.state;
   const [original, setOriginal] = useState<Source>(() => sampleImage());
   const [fileName, setFileName] = useState("Sample");
-  const [selectedId, setSelectedId] = useState(() => getDitherLayer(start.preset).id);
+  /** The effect card open in the inspector; one at a time. */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [mode, setMode] = useState<CompareMode>("result");
   const [galleryOpen, setGalleryOpen] = useState(false);
   /** Style shown on the canvas while hovering in the gallery; null shows the chosen one. */
   const [previewStyle, setPreviewStyle] = useState<string | null>(null);
-  const [showLayers, setShowLayers] = useState(WIDE);
   const [showInspector, setShowInspector] = useState(WIDE);
   const [dragging, setDragging] = useState(false);
   const [batchFiles, setBatchFiles] = useState<File[] | null>(null);
@@ -85,7 +84,6 @@ export function App() {
   const styleMemory = useRef<Record<string, Params>>({});
 
   const dither = getDitherLayer(doc);
-  const selected = doc.layers.find((l) => l.id === selectedId) ?? dither;
   const palette = useMemo<RGB[]>(() => resolvePalette(doc.palette) as RGB[], [doc.palette]);
   const renderLayers = useMemo<Layer[]>(
     () =>
@@ -125,22 +123,32 @@ export function App() {
     styleMemory.current[dither.algorithm] = dither.params;
     const params = styleMemory.current[algorithmId] ?? defaultParams(getAlgorithm(algorithmId));
     update(mapLayer(dither.id, (l) => ({ ...l, algorithm: algorithmId, params, enabled: true }) as Layer));
-    setSelectedId(dither.id);
   }
 
-  function addEffect(effectId: string) {
+  /** Adds an effect at the end of its side of the dither layer, opened for editing. */
+  function addEffect(effectId: string, side: Side) {
     const layer = effectLayer(effectId);
-    update((d) => ({ ...d, layers: insertLayerAfter(d.layers, selected.id, layer) }));
-    setSelectedId(layer.id);
+    update((d) => {
+      const layers = [...d.layers];
+      layers.splice(side === "before" ? layers.findIndex((l) => l.kind === "dither") : layers.length, 0, layer);
+      return { ...d, layers };
+    });
+    setExpandedId(layer.id);
+  }
+
+  function duplicateEffect(id: string) {
+    const layer = doc.layers.find((l) => l.id === id);
+    if (layer?.kind !== "effect") return;
+    const copy = { ...effectLayer(layer.effect), enabled: layer.enabled, params: { ...layer.params } };
+    update((d) => ({ ...d, layers: insertLayerAfter(d.layers, id, copy) }));
+    setExpandedId(copy.id);
   }
 
   function deleteLayer(id: string) {
-    const index = doc.layers.findIndex((l) => l.id === id);
-    const layer = doc.layers[index];
+    const layer = doc.layers.find((l) => l.id === id);
     if (!layer || layer.kind === "dither") return;
     update((d) => ({ ...d, layers: [...removeLayer(d.layers, id)] }));
-    if (selectedId === id) setSelectedId((doc.layers[index - 1] ?? doc.layers[index + 1] ?? dither).id);
-    say(`Removed ${layerTitle(layer).name}. Undo with Ctrl Z.`);
+    say(`Removed ${getEffect(layer.effect).name}. Undo with Ctrl Z.`);
   }
 
   function reorder(id: string, toIndex: number) {
@@ -162,7 +170,7 @@ export function App() {
 
   function applyPreset(p: Preset) {
     update(() => p);
-    setSelectedId(getDitherLayer(p).id);
+    setExpandedId(null);
   }
 
   // Keep the address bar in sync, so copying the URL always shares the current look.
@@ -265,7 +273,7 @@ export function App() {
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      say("Link copied. It holds all your layers and settings, not your image.");
+      say("Link copied. It holds all your effects and settings, not your image.");
     } catch {
       say("Couldn't copy automatically. Copy the address from your browser's address bar instead.", true);
     }
@@ -360,7 +368,7 @@ export function App() {
   const wide = typeof window !== "undefined" && window.innerWidth >= 900;
   const inspectorSpace = showInspector && wide ? INSPECTOR_SPACE : 0;
   const insets = {
-    left: showLayers && wide ? LAYERS_SPACE : 0,
+    left: 0,
     // The gallery takes the inspector's place while open; the image re-fits beside it.
     right: galleryOpen && wide ? GALLERY_SPACE : inspectorSpace,
   };
@@ -397,8 +405,6 @@ export function App() {
       <Toolbar
         title={fileName}
         subtitle={`${video ? `Video ${formatTime(video.info.duration - video.info.start)} · ` : ""}${source.width * doc.pixelSize} × ${source.height * doc.pixelSize} · ${getAlgorithm(dither.algorithm).name}${effects ? ` + ${effects} effect${effects > 1 ? "s" : ""}` : ""}`}
-        showLayers={showLayers}
-        onToggleLayers={() => setShowLayers((s) => !s)}
         galleryOpen={galleryOpen}
         onToggleGallery={() => setGalleryOpen((o) => !o)}
         showInspector={showInspector}
@@ -454,21 +460,6 @@ export function App() {
           </Suspense>
         )}
 
-        {showLayers && (
-          <aside className="panel layers-panel" aria-label="Layers">
-            <LayersPanel
-              layers={doc.layers}
-              ditherThumbnail={thumbnails[dither.algorithm] ?? null}
-              selectedId={selected.id}
-              onSelect={setSelectedId}
-              onToggle={(id) => update(mapLayer(id, (l) => ({ ...l, enabled: !l.enabled })))}
-              onRemove={deleteLayer}
-              onMove={reorder}
-              onAdd={addEffect}
-            />
-          </aside>
-        )}
-
         {galleryOpen && (
           <Gallery
             selected={dither.algorithm}
@@ -490,10 +481,17 @@ export function App() {
           // Hidden rather than unmounted while browsing styles, so it keeps its scroll position.
           <aside className="panel inspector" aria-label="Inspector" hidden={galleryOpen}>
             <Inspector
-              layer={selected}
+              layers={doc.layers}
+              expandedId={expandedId}
+              onExpand={setExpandedId}
+              onToggle={(id) => update(mapLayer(id, (l) => ({ ...l, enabled: !l.enabled })))}
+              onRemove={deleteLayer}
+              onDuplicate={duplicateEffect}
+              onMove={reorder}
+              onAdd={addEffect}
               workingWidth={source.width}
               onTextAction={(a) => void textAction(a)}
-              thumbnail={thumbnails[dither.algorithm] ?? null}
+              ditherThumbnail={thumbnails[dither.algorithm] ?? null}
               onOpenStyles={() => setGalleryOpen(true)}
               onParam={setParam}
               onResetLayer={(id) =>

@@ -22,13 +22,6 @@ function Icon({ size = 18, children, ...rest }: IconProps & { children: ReactNod
   );
 }
 
-export const SidebarLeftIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
-    <path d="M7.5 4v12M4.5 7h1M4.5 9.5h1" />
-  </Icon>
-);
-
 export const SidebarRightIcon = (p: IconProps) => (
   <Icon {...p}>
     <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
@@ -96,6 +89,14 @@ export const MinusIcon = (p: IconProps) => (
 export const PlusIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M5 10h10M10 5v10" />
+  </Icon>
+);
+
+export const MoreIcon = (p: IconProps) => (
+  <Icon {...p} fill="currentColor" stroke="none">
+    <circle cx="5" cy="10" r="1.4" />
+    <circle cx="10" cy="10" r="1.4" />
+    <circle cx="15" cy="10" r="1.4" />
   </Icon>
 );
 

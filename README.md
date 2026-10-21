@@ -13,9 +13,10 @@ algorithm and a palette, tune it live, export.
 - **ASCII and Braille art:** turn any image into real text, with characters
   chosen to match both brightness and shape. Copy it, or save it as .txt or
   as a coloured HTML page.
-- **Layers:** stack effects before the dither (to shape the image) and after
-  it (to treat the result): adjust, blur, sharpen, grain, tint, bloom,
-  vignette, chromatic split, scanlines and more. Full undo and redo.
+- **Effects:** add effects before the dither (to shape the image) and after
+  it (to treat the result), in the inspector's Effects tab: adjust,
+  blur, sharpen, grain, tint, bloom, vignette, chromatic split, scanlines and
+  more. Full undo and redo.
 - **Your own palettes:** pick from built-in palettes or make one from your
   image in a click.
 - **Batch export:** apply one look to a whole folder of images.

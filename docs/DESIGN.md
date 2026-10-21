@@ -398,18 +398,34 @@ permanent list, so the catalogue can grow without crowding the window:
 
 - Opened from the style card at the top of the inspector, the toolbar's
   Styles button, or Ctrl/⌘ K.
-- Docks beside the inspector (the canvas re-fits so the whole image stays
-  visible); categories with counts, search across names, summaries and
-  authors, and live thumbnails of the user's own image.
+- Takes the inspector's place while open (the canvas re-fits so the whole
+  image stays visible); categories with counts, search across names,
+  summaries and authors, and live thumbnails of the user's own image.
 - Hovering or arrowing through cards previews that style on the canvas;
-  click or Enter applies it; Escape or clicking the canvas cancels.
+  click or Enter applies it; Done, Escape or clicking the canvas cancels.
 - On narrow screens it covers the canvas, with categories as a chip row.
 
-**Layers** (left panel): the stack in processing order between "Your image"
-and "Output". Click to select (the inspector shows that layer), drag or
-Alt + ↑/↓ to reorder, eye to hide, Delete or the bin to remove an effect,
-**+** for a categorised effect menu (new effects go just below the selected
-layer). Badges are coloured by category; the dither layer has a checkerboard.
+**Inspector tabs: Style · Effects · Output.** There is no separate layers
+panel; each tab holds one kind of thing.
+
+- **Style**: the style card (opens the gallery), the style's settings,
+  palette and colour.
+- **Effects**: the whole stack as one list, top to bottom, with the dither
+  as a divider row: effects above it shape the image, effects below it treat
+  the result. The tab shows a count of effects.
+  - Each effect is a card with its settings inline; one is open at a time,
+    and a new effect opens and scrolls into view.
+  - **Add effect** places an effect where it usually belongs: adjustments
+    just before the dither, light and glitch effects at the end. The menu
+    says which.
+  - Reorder by dragging a card's header (across the divider too), Alt + ↑/↓
+    on its title, or its **⋯** menu (move up/down, move to the other side
+    of the dither, duplicate, remove). The eye turns an effect, or the
+    dither itself, off; clicking the divider opens the Style tab.
+- **Output**: pixel size and seed (Rendering), and preset links and files.
+
+The model is unchanged: one ordered layer list with exactly one dither
+layer, so presets and links from before keep working.
 
 **Export menu** (toolbar): Export PNG (Ctrl/⌘ E) or Batch export…, which
 asks for images, confirms in a sheet, then writes into a chosen folder where
