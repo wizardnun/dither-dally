@@ -9,7 +9,8 @@ algorithm and a palette, tune it live, export.
 > [docs/DESIGN.md](docs/DESIGN.md) for the design and what's next.
 
 - **Video:** open an MP4 or WebM, scrub and play it with your look applied,
-  and export a dithered MP4 that keeps the original sound.
+  and export a dithered MP4 that keeps the original sound, at preview size
+  or full size (up to 4K). Steady dots stops diffusion styles shimmering.
 - **ASCII and Braille art:** turn any image into real text, with characters
   chosen to match both brightness and shape. Copy it, or save it as .txt or
   as a coloured HTML page.

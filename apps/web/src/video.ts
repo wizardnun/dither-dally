@@ -11,13 +11,17 @@ import {
   getFirstEncodableVideoCodec,
   type InputVideoTrack,
 } from "mediabunny";
-import type { ColorSettings, Layer, RGB } from "@dither-dally/core";
+import { scaleLayers, type ColorSettings, type Layer, type RGB, type SteadyOptions } from "@dither-dally/core";
 import { MAX_SIDE } from "./image.ts";
 import { createRenderWorker, renderOnce } from "./useDither.ts";
 
 export interface VideoInfo {
+  /** Preview frame size (long side ≤ MAX_SIDE). */
   width: number;
   height: number;
+  /** The video's own display size. */
+  sourceWidth: number;
+  sourceHeight: number;
   /** Seconds. */
   duration: number;
   /** First frame timestamp, seconds (often 0). */
@@ -56,7 +60,8 @@ export class VideoSession {
     const start = await track.getFirstTimestamp();
     const duration = await input.computeDuration();
     const hasAudio = (await input.getPrimaryAudioTrack()) !== null;
-    return new VideoSession(file, input, sink, { width, height, duration, start, hasAudio });
+    const info = { width, height, sourceWidth: track.displayWidth, sourceHeight: track.displayHeight, duration, start, hasAudio };
+    return new VideoSession(file, input, sink, info);
   }
 
   /**
@@ -101,6 +106,9 @@ export class VideoSession {
   }
 }
 
+/** Longest side of a full-size video export: 4K, which hardware encoders handle widely. */
+export const VIDEO_FULL_MAX_SIDE = 3840;
+
 export interface VideoExportJob {
   file: File;
   layers: Layer[];
@@ -108,6 +116,20 @@ export interface VideoExportJob {
   seed: number;
   color: ColorSettings;
   pixelSize: number;
+  /** "preview": the preview's resolution. "full": the video's own, up to VIDEO_FULL_MAX_SIDE. */
+  size: "preview" | "full";
+  /** Keep dots steady between frames; sizes are in preview pixels and scale with the export. */
+  steady?: SteadyOptions;
+}
+
+/** Output size of a video export, kept even as H.264 requires. */
+export function videoExportSize(video: { width: number; height: number }, pixelSize: number, maxSide: number) {
+  const fit = Math.min(1, maxSide / Math.max(video.width, video.height));
+  let w = Math.max(2, Math.round((video.width * fit) / pixelSize));
+  let h = Math.max(2, Math.round((video.height * fit) / pixelSize));
+  if ((w * pixelSize) % 2) w -= 1;
+  if ((h * pixelSize) % 2) h -= 1;
+  return { w, h, outW: w * pixelSize, outH: h * pixelSize };
 }
 
 export interface VideoExportHandle {
@@ -121,9 +143,11 @@ export class VideoExportCanceled extends Error {
 }
 
 /**
- * Re-encodes a video with every frame run through the layer stack, at the
- * same working resolution as the preview (then scaled up by the pixel size
- * with hard edges). The audio track is copied over unchanged when possible.
+ * Re-encodes a video with every frame run through the style and effects, at
+ * the preview's resolution or the video's own (then scaled up by the pixel
+ * size with hard edges). At full size, distance settings and the steady-dots
+ * blocks scale with the frame so the look matches the preview. The audio
+ * track is copied over unchanged when possible.
  */
 export function exportVideo(job: VideoExportJob, onProgress: (fraction: number) => void): VideoExportHandle {
   let conversion: Conversion | null = null;
@@ -135,18 +159,22 @@ export function exportVideo(job: VideoExportJob, onProgress: (fraction: number) 
     try {
       const track = await input.getPrimaryVideoTrack();
       if (!track) throw new Error("This file has no video track.");
-      const fit = Math.min(1, MAX_SIDE / Math.max(track.displayWidth, track.displayHeight));
-      // Working size, chosen so the scaled-up output has even dimensions (required by H.264).
-      let w = Math.max(2, Math.round((track.displayWidth * fit) / job.pixelSize));
-      let h = Math.max(2, Math.round((track.displayHeight * fit) / job.pixelSize));
-      if ((w * job.pixelSize) % 2) w -= 1;
-      if ((h * job.pixelSize) % 2) h -= 1;
-      const outW = w * job.pixelSize;
-      const outH = h * job.pixelSize;
+      const display = { width: track.displayWidth, height: track.displayHeight };
+      const { w, h, outW, outH } = videoExportSize(display, job.pixelSize, job.size === "full" ? VIDEO_FULL_MAX_SIDE : MAX_SIDE);
+      // How much larger than the preview each frame is; settings in pixels scale by this.
+      const factor = w / videoExportSize(display, job.pixelSize, MAX_SIDE).w;
+      const layers = scaleLayers(job.layers, factor);
+      const steady = job.steady && { ...job.steady, block: Math.max(1, Math.round(job.steady.block * factor)) };
 
       const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
       const codec = await getFirstEncodableVideoCodec(output.format.getSupportedVideoCodecs(), { width: outW, height: outH });
-      if (!codec) throw new Error("This browser can't encode video. Try a recent version of Chrome, Edge or Safari.");
+      if (!codec) {
+        throw new Error(
+          job.size === "full"
+            ? `This browser can't encode video at ${outW} × ${outH}. Try "As previewed".`
+            : "This browser can't encode video. Try a recent version of Chrome, Edge, Safari or Firefox.",
+        );
+      }
 
       const work = new OffscreenCanvas(w, h);
       const workCtx = work.getContext("2d", { willReadFrequently: true })!;
@@ -166,7 +194,7 @@ export function exportVideo(job: VideoExportJob, onProgress: (fraction: number) 
           process: async (sample) => {
             sample.draw(workCtx, 0, 0, w, h);
             const frame = workCtx.getImageData(0, 0, w, h);
-            const result = await renderOnce(worker, { source: frame, layers: job.layers, palette: job.palette, seed: job.seed, color: job.color });
+            const result = await renderOnce(worker, { source: frame, layers, palette: job.palette, seed: job.seed, color: job.color, steady });
             smallCtx.putImageData(result, 0, 0);
             // A fresh canvas per frame, so the encoder never sees a frame overwritten mid-flight.
             const out = new OffscreenCanvas(outW, outH);

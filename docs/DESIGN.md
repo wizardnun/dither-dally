@@ -388,6 +388,27 @@ A **Text** family turns images into real characters (`text.ts`, `font.ts`):
   PICO-8 application itself is proprietary and not used) and the 216
   web-safe colours, generated rather than listed.
 
+### Steady dots and full-size video
+
+- **Flicker** came from dithering every frame from scratch: tiny input
+  differences (compression noise, grain) re-scatter diffusion dots. Steady
+  dots (`steady.ts`, on by default for video) works in 8 px blocks: a block
+  whose input differs from the input it was last dithered from by no more
+  than 4 per channel on average keeps its previous dots; otherwise it takes
+  the new frame's. Comparing with the last *dithered* input, not the
+  previous frame, stops slow fades from drifting. It runs right after the
+  dither layer, so effects after it are unaffected, and it works with every
+  style (styles that keep colours skip it).
+- Measured on a 1440p test clip with per-frame noise (Floyd–Steinberg):
+  the still area changed by 109/255 on average between frames without it,
+  and 0 with it; the moving box rendered the same either way.
+- The render worker keeps the state between frames and starts over when
+  any setting or the frame size changes, so an edit is never hidden behind
+  old dots. Preview playback uses the same path as export.
+- **Full-size video export** goes up to 3840 px on the long side (4K, which
+  hardware encoders handle widely). Like stills, distance settings scale
+  with the frame (`scaleLayers`), and so does the steady-dots block size.
+
 ### Testing video
 
 There is no unit test for the video path (it needs a browser with

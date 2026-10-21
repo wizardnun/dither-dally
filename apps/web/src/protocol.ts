@@ -1,4 +1,4 @@
-import type { ColorSettings, Layer, RGB } from "@dither-dally/core";
+import type { ColorSettings, Layer, RGB, SteadyOptions } from "@dither-dally/core";
 
 export interface RenderRequest {
   requestId: number;
@@ -11,6 +11,8 @@ export interface RenderRequest {
   palette: RGB[];
   seed: number;
   color: ColorSettings;
+  /** Video frames: keep dots steady between consecutive requests (see SteadyDither). */
+  steady?: SteadyOptions;
 }
 
 export type RenderResponse =

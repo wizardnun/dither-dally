@@ -14,9 +14,11 @@ import { ResetButton, SettingsList } from "./ControlField.tsx";
 import { EffectList, type EffectListProps } from "./EffectList.tsx";
 import { ChevronIcon, DiceIcon, DocIcon, FolderIcon, LinkIcon } from "./icons.tsx";
 import { PalettePicker } from "./PalettePicker.tsx";
-import { Row, Section, Segmented, SliderRow } from "./ui.tsx";
+import { Row, Section, Segmented, SliderRow, SwitchRow } from "./ui.tsx";
 
 export type TextAction = "copy" | "txt" | "html";
+
+export const STEADY_HELP = "Keeps dots still where the picture doesn't change, so diffusion and noise styles don't shimmer. Moving parts still update.";
 
 type Tab = "style" | "effects" | "output";
 const TABS: { id: Tab; label: string }[] = [
@@ -39,6 +41,9 @@ type Props = Omit<EffectListProps, "onShowStyle"> & {
   onColor: (c: ColorSettings) => void;
   pixelSize: number;
   onPixelSize: (n: number) => void;
+  isVideo: boolean;
+  steadyDots: boolean;
+  onSteadyDots: (on: boolean) => void;
   seed: number;
   onSeed: (n: number) => void;
   onCopyLink: () => void;
@@ -189,6 +194,11 @@ function StyleTab(p: Props & { layer: DitherLayer }) {
 function OutputTab(p: Props) {
   return (
     <>
+      {p.isVideo && (
+        <Section title="Video">
+          <SwitchRow id="steady-dots" label="Steady dots" checked={p.steadyDots} onChange={p.onSteadyDots} help={STEADY_HELP} />
+        </Section>
+      )}
       <Section title="Rendering">
         <SliderRow
           id="pixel-size"

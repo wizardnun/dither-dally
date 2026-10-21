@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ColorSettings, Layer, RGB } from "@dither-dally/core";
+import type { ColorSettings, Layer, RGB, SteadyOptions } from "@dither-dally/core";
 import type { RenderRequest, RenderResponse } from "./protocol.ts";
 
 export interface RenderJob {
@@ -8,6 +8,8 @@ export interface RenderJob {
   palette: RGB[];
   seed: number;
   color: ColorSettings;
+  /** Video frames only: keep dots steady from one frame to the next. */
+  steady?: SteadyOptions;
 }
 
 export interface RenderResult {
@@ -43,6 +45,7 @@ export function renderOnce(worker: Worker, job: Omit<RenderJob, "source"> & { so
       palette: job.palette,
       seed: job.seed,
       color: job.color,
+      steady: job.steady,
     };
     worker.postMessage(req, [buffer]);
   });
@@ -74,16 +77,16 @@ export function useRender(job: RenderJob): RenderResult {
     return () => worker.terminate();
   }, []);
 
-  const { source, layers, palette, seed, color } = job;
+  const { source, layers, palette, seed, color, steady } = job;
   useEffect(() => {
     const worker = workerRef.current;
     if (!worker || !source) return;
     const requestId = ++latest.current;
     const buffer = source.data.slice().buffer;
-    const req: RenderRequest = { requestId, width: source.width, height: source.height, buffer, layers, palette, seed, color };
+    const req: RenderRequest = { requestId, width: source.width, height: source.height, buffer, layers, palette, seed, color, steady };
     setResult((r) => ({ ...r, busy: true }));
     worker.postMessage(req, [buffer]);
-  }, [source, layers, palette, seed, color]);
+  }, [source, layers, palette, seed, color, steady]);
 
   return result;
 }

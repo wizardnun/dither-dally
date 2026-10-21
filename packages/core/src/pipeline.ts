@@ -1,6 +1,7 @@
 import type { ColorSettings } from "./colorspace.ts";
 import { getEffect } from "./effects.ts";
 import { getAlgorithm } from "./registry.ts";
+import type { SteadyDither } from "./steady.ts";
 import type { GlyphRasterizer, Layer, Palette, PixelBuffer } from "./types.ts";
 
 export interface PipelineSettings {
@@ -10,6 +11,8 @@ export interface PipelineSettings {
   color: ColorSettings;
   /** Real-font character drawing for text styles (see GlyphRasterizer). */
   glyphs?: GlyphRasterizer;
+  /** For video: keeps the dither's dots steady between frames (see SteadyDither). */
+  steady?: SteadyDither;
 }
 
 /** FNV-1a hash of a string, for deriving per-layer seeds. */
@@ -60,7 +63,9 @@ export function runPipeline(input: PixelBuffer, s: PipelineSettings): PixelBuffe
   for (const layer of s.layers) {
     if (!layer.enabled) continue;
     if (layer.kind === "dither") {
-      current = getAlgorithm(layer.algorithm).run(current, s.palette, layer.params, { seed: s.seed, color: s.color, glyphs: s.glyphs });
+      const algorithm = getAlgorithm(layer.algorithm);
+      const dithered = algorithm.run(current, s.palette, layer.params, { seed: s.seed, color: s.color, glyphs: s.glyphs });
+      current = s.steady && !algorithm.keepsColours ? s.steady.apply(current, dithered) : dithered;
     } else {
       current = getEffect(layer.effect).run(current, layer.params, { seed: (s.seed ^ hashId(layer.id)) >>> 0 });
     }

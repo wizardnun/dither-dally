@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import {
   PaletteFileError,
   PresetError,
+  DEFAULT_STEADY,
   customPalette,
   defaultParams,
   effectLayer,
@@ -95,6 +96,8 @@ export function App() {
   const [videoTime, setVideoTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [videoExportOpen, setVideoExportOpen] = useState(false);
+  /** Keep dots still between video frames where the picture doesn't change. */
+  const [steadyDots, setSteadyDots] = useState(true);
   const playback = useRef<AbortController | null>(null);
   /** Increments per seek, so a slow frame fetch can't overwrite a newer one. */
   const seekToken = useRef(0);
@@ -127,7 +130,14 @@ export function App() {
     return s.width > source.width ? { width: s.width * doc.pixelSize, height: s.height * doc.pixelSize } : null;
   }, [original, doc.pixelSize, source.width]);
   const thumbSource = useMemo(() => thumbnailData(original, 168, 112), [original]);
-  const result = useRender({ source, layers: renderLayers, palette, seed: doc.seed, color: doc.color });
+  const result = useRender({
+    source,
+    layers: renderLayers,
+    palette,
+    seed: doc.seed,
+    color: doc.color,
+    steady: video && steadyDots ? DEFAULT_STEADY : undefined,
+  });
   const thumbnails = useThumbnails(thumbSource, doc.layers, palette, doc.seed, doc.color);
   const status = useStatus(result, playing, previewStyle && getAlgorithm(previewStyle).name);
 
@@ -529,6 +539,8 @@ export function App() {
               info={video.info}
               job={{ layers: doc.layers, palette, seed: doc.seed, color: doc.color, pixelSize: doc.pixelSize }}
               name={`${fileName}-${dither.algorithm}`}
+              steadyDots={steadyDots}
+              onSteadyDots={setSteadyDots}
               onClose={() => setVideoExportOpen(false)}
               onDone={(message, error) => {
                 setVideoExportOpen(false);
@@ -589,6 +601,9 @@ export function App() {
               onColor={(c: ColorSettings) => update((d) => ({ ...d, color: c }))}
               pixelSize={doc.pixelSize}
               onPixelSize={(n) => update((d) => ({ ...d, pixelSize: n }), "pixelSize")}
+              isVideo={video !== null}
+              steadyDots={steadyDots}
+              onSteadyDots={setSteadyDots}
               seed={doc.seed}
               onSeed={(n) => update((d) => ({ ...d, seed: n }), "seed")}
               onCopyLink={() => void copyLink()}
