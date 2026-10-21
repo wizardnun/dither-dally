@@ -24,6 +24,17 @@ export function quantize(
   return out;
 }
 
+/** No style: the image passes through unchanged, so only the effects apply. */
+export const noStyle: AlgorithmDefinition = {
+  id: "none",
+  name: "None",
+  family: "basic",
+  summary: "No dithering: the image keeps all its colours, so only your effects change it.",
+  controls: [],
+  keepsColours: true,
+  run: (input) => ({ width: input.width, height: input.height, data: input.data.slice() }),
+};
+
 export const nearestColor: AlgorithmDefinition = {
   id: "nearest",
   name: "Nearest colour",

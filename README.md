@@ -35,7 +35,7 @@ algorithm and a palette, tune it live, export.
 
 | Family | Algorithms |
 |---|---|
-| Basic | Threshold, Nearest colour |
+| Basic | None (effects only), Threshold, Nearest colour |
 | Error diffusion | Floyd–Steinberg, Atkinson, Burkes, Jarvis–Judice–Ninke, Stucki, Sierra, Two-row Sierra, Sierra Lite, Stevenson–Arce, Riemersma |
 | Ordered | Bayer (2×2 to 16×16), Blue noise (void-and-cluster), White noise |
 | Halftone | Halftone (round, diamond, square or line dots), CMYK halftone |

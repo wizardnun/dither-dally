@@ -128,5 +128,7 @@ export interface AlgorithmDefinition {
   summary: string;
   reference?: Reference;
   controls: readonly Control[];
+  /** True for a style that leaves colours as they are, so the palette and colour settings don't apply. */
+  keepsColours?: boolean;
   run(input: PixelBuffer, palette: Palette, params: Params, ctx: RunContext): PixelBuffer;
 }

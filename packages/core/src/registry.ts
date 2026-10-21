@@ -1,4 +1,4 @@
-import { nearestColor, threshold } from "./basic.ts";
+import { nearestColor, noStyle, threshold } from "./basic.ts";
 import { hexagons, shapeGrid, triangles, voronoiCells } from "./cells.ts";
 import { KERNELS, diffusionAlgorithm } from "./diffusion.ts";
 import { slip, streak } from "./glitch.ts";
@@ -11,6 +11,7 @@ import { ascii, braille } from "./text.ts";
 import type { AlgorithmDefinition, Family, Params } from "./types.ts";
 
 export const ALGORITHMS: readonly AlgorithmDefinition[] = [
+  noStyle,
   nearestColor,
   threshold,
   ...KERNELS.map(diffusionAlgorithm),

@@ -15,10 +15,19 @@ const COLOR_MODES: ColorSettings[] = [
 describe.each(ALGORITHMS.map((a) => [a.id, a] as const))("%s", (_id, algo) => {
   const params = defaultParams(algo);
 
-  it.each(PALETTES.map((p) => [p.id, p] as const))("emits only colours from %s", (_pid, palette) => {
-    const out = algo.run(testImage(), palette.colors, params, ctx);
-    expect(usesOnlyPalette(out, palette.colors)).toBe(true);
-  });
+  if (algo.keepsColours) {
+    it("passes the image through unchanged, as a copy", () => {
+      const input = testImage();
+      const out = algo.run(input, getPalette("mono").colors, params, ctx);
+      expect(hash(out)).toBe(hash(input));
+      expect(out.data).not.toBe(input.data);
+    });
+  } else {
+    it.each(PALETTES.map((p) => [p.id, p] as const))("emits only colours from %s", (_pid, palette) => {
+      const out = algo.run(testImage(), palette.colors, params, ctx);
+      expect(usesOnlyPalette(out, palette.colors)).toBe(true);
+    });
+  }
 
   it("keeps size and alpha (text styles draw an opaque page)", () => {
     const input = testImage();
@@ -39,7 +48,7 @@ describe.each(ALGORITHMS.map((a) => [a.id, a] as const))("%s", (_id, algo) => {
     expect(hash(out)).toMatchSnapshot();
   });
 
-  it.each(COLOR_MODES.map((c) => [`${c.space}/${c.metric}`, c] as const))(
+  it.skipIf(algo.keepsColours).each(COLOR_MODES.map((c) => [`${c.space}/${c.metric}`, c] as const))(
     "emits only palette colours in %s mode",
     (_label, color) => {
       const palette = getPalette("ega-16").colors;

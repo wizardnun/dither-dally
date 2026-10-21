@@ -192,7 +192,7 @@ function DitherDivider(p: {
           <Canvas image={p.thumbnail} label="" />
         </span>
         <span className="fx-divider-text">
-          <span className="fx-divider-label">Dither</span>
+          <span className="fx-divider-label">Style</span>
           <span className="fx-name">{name}</span>
         </span>
       </button>

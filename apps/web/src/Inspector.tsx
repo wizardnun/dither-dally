@@ -124,54 +124,64 @@ function StyleTab(p: Props & { layer: DitherLayer }) {
         )}
       </header>
 
-      <Section title="Settings">
-        <SettingsList layer={p.layer} onParam={p.onParam} />
-        <ResetButton onClick={() => p.onResetLayer(p.layer.id)} />
-      </Section>
+      {!algorithm.keepsColours && (
+        <Section title="Settings">
+          <SettingsList layer={p.layer} onParam={p.onParam} />
+          <ResetButton onClick={() => p.onResetLayer(p.layer.id)} />
+        </Section>
+      )}
 
       {algorithm.family === "text" && <TextSection {...p} layer={p.layer} />}
 
-      <Section title="Palette">
-        <PalettePicker
-          value={p.palette}
-          onChange={p.onPalette}
-          onExtract={p.onExtract}
-          onImport={p.onImportPalette}
-          onSave={p.onSavePalette}
-        />
-      </Section>
-
-      <Section title="Colour">
-        <Row label="Matching">
-          <Segmented
-            label="Colour matching"
-            value={p.color.metric}
-            options={[
-              { value: "srgb", label: "sRGB" },
-              { value: "oklab", label: "OKLab" },
-            ]}
-            onChange={(metric) => p.onColor({ ...p.color, metric })}
-          />
-        </Row>
-        <Row label="Diffuse in">
-          <Segmented
-            label="Diffuse error in"
-            value={p.color.space}
-            disabled={!diffusion}
-            options={[
-              { value: "srgb", label: "sRGB" },
-              { value: "linear", label: "Linear" },
-            ]}
-            onChange={(space) => p.onColor({ ...p.color, space })}
-          />
-        </Row>
-        <p className="hint">
-          OKLab picks colours the way your eye sees them.{" "}
-          {diffusion
-            ? "Linear keeps true brightness; midtones come out darker than the classic look."
-            : "Diffusion space only applies to error-diffusion styles."}
+      {algorithm.keepsColours ? (
+        <p className="hint keeps-colours">
+          Palette and colour settings don't apply without a style. Add effects on the Effects tab.
         </p>
-      </Section>
+      ) : (
+        <>
+          <Section title="Palette">
+            <PalettePicker
+              value={p.palette}
+              onChange={p.onPalette}
+              onExtract={p.onExtract}
+              onImport={p.onImportPalette}
+              onSave={p.onSavePalette}
+            />
+          </Section>
+
+          <Section title="Colour">
+            <Row label="Matching">
+              <Segmented
+                label="Colour matching"
+                value={p.color.metric}
+                options={[
+                  { value: "srgb", label: "sRGB" },
+                  { value: "oklab", label: "OKLab" },
+                ]}
+                onChange={(metric) => p.onColor({ ...p.color, metric })}
+              />
+            </Row>
+            <Row label="Diffuse in">
+              <Segmented
+                label="Diffuse error in"
+                value={p.color.space}
+                disabled={!diffusion}
+                options={[
+                  { value: "srgb", label: "sRGB" },
+                  { value: "linear", label: "Linear" },
+                ]}
+                onChange={(space) => p.onColor({ ...p.color, space })}
+              />
+            </Row>
+            <p className="hint">
+              OKLab picks colours the way your eye sees them.{" "}
+              {diffusion
+                ? "Linear keeps true brightness; midtones come out darker than the classic look."
+                : "Diffusion space only applies to error-diffusion styles."}
+            </p>
+          </Section>
+        </>
+      )}
     </>
   );
 }

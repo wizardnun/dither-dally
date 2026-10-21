@@ -38,6 +38,8 @@ exports[`jarvis-judice-ninke > matches the golden output 1`] = `"a039ca936f7ca55
 
 exports[`nearest > matches the golden output 1`] = `"4d2d2d9cc8fdcc04"`;
 
+exports[`none > matches the golden output 1`] = `"9d047fc639cafa1a"`;
+
 exports[`riemersma > matches the golden output 1`] = `"e4b915c8393770d8"`;
 
 exports[`rings > matches the golden output 1`] = `"5cbfdb8170da822e"`;
