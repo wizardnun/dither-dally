@@ -1,3 +1,4 @@
+import { createNearestSearch, type Domain } from "./nearest.ts";
 import type { Palette } from "./types.ts";
 
 /** Which values error diffusion adds and subtracts. */
@@ -90,21 +91,7 @@ export function createColorModel(palette: Palette, settings: ColorSettings): Col
     target.set(v, i * 3);
   }
 
-  const closest = (x: number, y: number, z: number): number => {
-    let best = 0;
-    let bestDist = Infinity;
-    for (let i = 0, j = 0; i < n; i++, j += 3) {
-      const dx = x - target[j]!;
-      const dy = y - target[j + 1]!;
-      const dz = z - target[j + 2]!;
-      const d = dx * dx + dy * dy + dz * dz;
-      if (d < bestDist) {
-        bestDist = d;
-        best = i;
-      }
-    }
-    return best;
-  };
+  const closest = createNearestSearch(target, n, settings.metric === "oklab" ? OKLAB_GAMUT : SRGB_CUBE);
 
   let nearest: ColorModel["nearest"];
   if (settings.metric === "srgb") {
@@ -125,6 +112,11 @@ export function createColorModel(palette: Palette, settings: ColorSettings): Col
 
   return { toWorking, paletteWorking, nearest };
 }
+
+/** Where queries usually land, so the search grid covers them. */
+const SRGB_CUBE: Domain = { min: [0, 0, 0], max: [255, 255, 255] };
+/** The sRGB gamut in OKLab, rounded outwards. */
+const OKLAB_GAMUT: Domain = { min: [0, -0.24, -0.32], max: [1, 0.28, 0.2] };
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
