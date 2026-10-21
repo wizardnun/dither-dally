@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ExportIcon,
+  LinkIcon,
   PhotoIcon,
   RedoIcon,
-  ShareIcon,
   SideBySideIcon,
   SidebarLeftIcon,
   SidebarRightIcon,
@@ -48,16 +49,6 @@ export function Toolbar(p: Props) {
         <button type="button" className="tool" aria-pressed={p.showLayers} aria-label="Show layers" title="Layers" onClick={p.onToggleLayers}>
           <SidebarLeftIcon />
         </button>
-        <button
-          type="button"
-          className="tool"
-          aria-pressed={p.galleryOpen}
-          aria-label="Browse styles"
-          title="Browse styles (Ctrl K)"
-          onClick={p.onToggleGallery}
-        >
-          <StylesIcon />
-        </button>
         <button type="button" className="tool" aria-label="Open image" title="Open image (Ctrl O)" onClick={p.onOpen}>
           <PhotoIcon />
         </button>
@@ -82,13 +73,13 @@ export function Toolbar(p: Props) {
           value={p.mode}
           onChange={p.onMode}
           options={[
+            { value: "result", label: "Result only", icon: <SquareIcon size={16} /> },
             { value: "split", label: "Split compare", icon: <SplitIcon size={16} /> },
             { value: "side", label: "Side by side", icon: <SideBySideIcon size={16} /> },
-            { value: "result", label: "Result only", icon: <SquareIcon size={16} /> },
           ]}
         />
         <button type="button" className="tool" aria-label="Copy link to these settings" title="Copy link to these settings" onClick={p.onShare}>
-          <ShareIcon />
+          <LinkIcon />
         </button>
         <ExportMenu
           onExport={p.onExport}
@@ -98,6 +89,17 @@ export function Toolbar(p: Props) {
           isVideo={p.isVideo}
           canExport={p.canExport}
         />
+        <span className="toolbar-sep" aria-hidden="true" />
+        <button
+          type="button"
+          className="tool"
+          aria-pressed={p.galleryOpen}
+          aria-label="Browse styles"
+          title="Browse styles (Ctrl K)"
+          onClick={p.onToggleGallery}
+        >
+          <StylesIcon />
+        </button>
         <button
           type="button"
           className="tool"
@@ -123,12 +125,19 @@ interface ExportMenuProps {
 }
 
 function ExportMenu({ onExport, onBatch, onExportVideo, onTextAction, isVideo, canExport }: ExportMenuProps) {
-  const [open, setOpen] = useState(false);
+  /** Where to show the menu (below the button, right-aligned to it), or null when closed. */
+  const [at, setAt] = useState<{ top: number; right: number } | null>(null);
+  const open = at !== null;
+  const close = () => setAt(null);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!ref.current?.contains(t) && !menuRef.current?.contains(t)) close();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     window.addEventListener("pointerdown", onDown);
     window.addEventListener("keydown", onKey);
     return () => {
@@ -138,74 +147,87 @@ function ExportMenu({ onExport, onBatch, onExportVideo, onTextAction, isVideo, c
   }, [open]);
   return (
     <div ref={ref} className="menu-anchor">
-      <button type="button" className="tool" aria-label="Export" title="Export" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button
+        type="button"
+        className="tool"
+        aria-label="Export"
+        title="Export"
+        aria-expanded={open}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setAt((a) => (a ? null : { top: r.bottom + 6, right: window.innerWidth - r.right }));
+        }}
+      >
         <ExportIcon />
       </button>
-      {open && (
-        <div className="menu right" role="menu">
-          {onTextAction &&
-            (
-              [
-                ["copy", "Copy as text", "Paste it anywhere that uses a monospace font."],
-                ["txt", "Save as .txt", "Plain text file."],
-                ["html", "Save as HTML", "A web page that keeps the colours."],
-              ] as const
-            ).map(([action, name, desc]) => (
+      {/* Rendered at the top level: inside the blurred toolbar, the menu's own blur can't reach the page below. */}
+      {at &&
+        createPortal(
+          <div ref={menuRef} className="menu floating" role="menu" style={{ top: at.top, right: at.right, left: "auto" }}>
+            {onTextAction &&
+              (
+                [
+                  ["copy", "Copy as text", "Paste it anywhere that uses a monospace font."],
+                  ["txt", "Save as .txt", "Plain text file."],
+                  ["html", "Save as HTML", "A web page that keeps the colours."],
+                ] as const
+              ).map(([action, name, desc]) => (
+                <button
+                  key={action}
+                  type="button"
+                  role="menuitem"
+                  className="menu-item"
+                  onClick={() => {
+                    close();
+                    onTextAction(action);
+                  }}
+                >
+                  <span className="menu-name">{name}</span>
+                  <span className="menu-desc">{desc}</span>
+                </button>
+              ))}
+            {isVideo && (
               <button
-                key={action}
                 type="button"
                 role="menuitem"
                 className="menu-item"
                 onClick={() => {
-                  setOpen(false);
-                  onTextAction(action);
+                  close();
+                  onExportVideo();
                 }}
               >
-                <span className="menu-name">{name}</span>
-                <span className="menu-desc">{desc}</span>
+                <span className="menu-name">Export video…</span>
+                <span className="menu-desc">Process every frame and save an MP4, keeping the sound.</span>
               </button>
-            ))}
-          {isVideo && (
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              disabled={!canExport}
+              onClick={() => {
+                close();
+                onExport();
+              }}
+            >
+              <span className="menu-name">{isVideo ? "Export frame as PNG" : "Export PNG"}</span>
+              <span className="menu-desc">{isVideo ? "Save the frame you're looking at." : "Save this image as you see it."} Ctrl E</span>
+            </button>
             <button
               type="button"
               role="menuitem"
               className="menu-item"
               onClick={() => {
-                setOpen(false);
-                onExportVideo();
+                close();
+                onBatch();
               }}
             >
-              <span className="menu-name">Export video…</span>
-              <span className="menu-desc">Process every frame and save an MP4, keeping the sound.</span>
+              <span className="menu-name">Batch export…</span>
+              <span className="menu-desc">Apply this look to many images at once.</span>
             </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            className="menu-item"
-            disabled={!canExport}
-            onClick={() => {
-              setOpen(false);
-              onExport();
-            }}
-          >
-            <span className="menu-name">{isVideo ? "Export frame as PNG" : "Export PNG"}</span>
-            <span className="menu-desc">{isVideo ? "Save the frame you're looking at." : "Save this image as you see it."} Ctrl E</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="menu-item"
-            onClick={() => {
-              setOpen(false);
-              onBatch();
-            }}
-          >
-            <span className="menu-name">Batch export…</span>
-            <span className="menu-desc">Apply this look to many images at once.</span>
-          </button>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

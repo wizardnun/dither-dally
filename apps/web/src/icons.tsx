@@ -65,13 +65,6 @@ export const SquareIcon = (p: IconProps) => (
   </Icon>
 );
 
-export const ShareIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M10 2.8v9.4M6.8 5.8 10 2.8l3.2 3" />
-    <path d="M7 8.5H5.5a1.5 1.5 0 0 0-1.5 1.5v5.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V10a1.5 1.5 0 0 0-1.5-1.5H13" />
-  </Icon>
-);
-
 export const ExportIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M10 3v9.5M6.8 9.5 10 12.7l3.2-3.2" />

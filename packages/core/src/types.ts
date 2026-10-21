@@ -24,6 +24,8 @@ interface ControlBase {
   id: string;
   label: string;
   help?: string;
+  /** Show this control only while another control has one of these values. */
+  visibleWhen?: { control: string; is: readonly ParamValue[] };
 }
 
 export interface SliderControl extends ControlBase {

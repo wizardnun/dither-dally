@@ -388,8 +388,9 @@ export const ascii: AlgorithmDefinition = {
       kind: "text",
       id: "custom",
       label: "Custom characters",
-      help: "Used when Characters is Custom. Any order; characters the built-in font can't draw are skipped.",
+      help: "Any order; characters the built-in font can't draw are skipped.",
       maxLength: 64,
+      visibleWhen: { control: "charset", is: ["custom"] },
       default: " .:oO@",
     },
     {

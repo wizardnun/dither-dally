@@ -9,19 +9,17 @@ const families = Object.keys(FAMILY_LABELS) as Family[];
 interface Props {
   selected: string;
   thumbnails: Record<string, ImageData>;
-  /** Space covered by the inspector on the right; the gallery docks just left of it. */
-  rightInset: number;
   onPreview: (id: string | null) => void;
   onChoose: (id: string) => void;
   onClose: () => void;
 }
 
 /**
- * Style gallery docked beside the inspector, so the canvas stays visible.
+ * Style gallery docked where the inspector sits, so the canvas stays visible.
  * Hovering or arrowing through styles previews them on the canvas; clicking
- * or Enter applies one. Clicking the canvas or Escape closes it.
+ * or Enter applies one. Done, clicking the canvas or Escape closes it.
  */
-export function Gallery({ selected, thumbnails, rightInset, onPreview, onChoose, onClose }: Props) {
+export function Gallery({ selected, thumbnails, onPreview, onChoose, onClose }: Props) {
   const current = ALGORITHMS.find((a) => a.id === selected);
   const [category, setCategory] = useState<Category>(() => lastCategory ?? current?.family ?? "all");
   const [query, setQuery] = useState("");
@@ -71,25 +69,30 @@ export function Gallery({ selected, thumbnails, rightInset, onPreview, onChoose,
 
   return (
     <div className="gallery-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="gallery" role="dialog" aria-label="Styles" style={{ right: rightInset + 10 }}>
-        <div className="gallery-search">
-          <SearchIcon size={15} />
-          <input
-            ref={searchRef}
-            type="search"
-            placeholder="Search styles"
-            aria-label="Search styles"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                gridRef.current?.querySelector<HTMLButtonElement>(".style-card")?.focus();
-              } else if (e.key === "Enter" && visible[0]) {
-                onChoose(visible[0].id);
-              }
-            }}
-          />
+      <div className="gallery" role="dialog" aria-label="Styles">
+        <div className="gallery-top">
+          <div className="gallery-search">
+            <SearchIcon size={15} />
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder="Search styles"
+              aria-label="Search styles"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  gridRef.current?.querySelector<HTMLButtonElement>(".style-card")?.focus();
+                } else if (e.key === "Enter" && visible[0]) {
+                  onChoose(visible[0].id);
+                }
+              }}
+            />
+          </div>
+          <button type="button" className="push" onClick={onClose}>
+            Done
+          </button>
         </div>
 
         <nav className="gallery-cats" aria-label="Categories">

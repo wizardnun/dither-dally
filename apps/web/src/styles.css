@@ -405,6 +405,7 @@ canvas.overlay {
 .gallery {
   position: absolute;
   top: 10px;
+  right: 10px;
   bottom: 10px;
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr);
@@ -427,12 +428,26 @@ canvas.overlay {
   }
 }
 
-.gallery-search {
+/* Search field with the Done button beside it. */
+.gallery-top {
   grid-area: search;
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 12px 12px 4px;
+}
+
+.gallery-top .push {
+  flex: none;
+  padding: 5px 14px;
+}
+
+.gallery-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 0 10px;
   height: 32px;
   border-radius: 8px;
@@ -1122,11 +1137,15 @@ canvas.overlay {
   position: relative;
 }
 
-.layers-caption {
+/* Start and end of the stack: the image goes in at the top and comes out at the bottom. */
+.layers-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 6px 8px 4px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--tertiary);
+  color: var(--secondary);
 }
 
 .layers-hint {
@@ -1227,9 +1246,16 @@ canvas.overlay {
 }
 
 .layer-badge.dither {
-  background: repeating-conic-gradient(#1c1c1e 0% 25%, #f2f2f7 0% 50%) 0 0 / 6px 6px;
-  color: transparent;
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  background: var(--seg-bg);
+  box-shadow: 0 0 0 0.5px var(--panel-edge);
+}
+
+.layer-badge.dither canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
 }
 
 .layer-text {
@@ -1645,7 +1671,6 @@ canvas.overlay {
 
   .gallery {
     left: 10px;
-    right: 10px !important;
     width: auto;
   }
 

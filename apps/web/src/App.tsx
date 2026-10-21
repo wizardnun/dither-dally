@@ -50,7 +50,7 @@ type Source = CanvasImageSource & { width: number; height: number };
 /** Panel widths plus margins, used to centre the image in the visible area. */
 const LAYERS_SPACE = 240 + 20;
 const INSPECTOR_SPACE = 300 + 20;
-const GALLERY_SPACE = 500 + 10;
+const GALLERY_SPACE = 500 + 20;
 const WIDE = () => window.innerWidth >= 900;
 
 export function App() {
@@ -60,7 +60,7 @@ export function App() {
   const [original, setOriginal] = useState<Source>(() => sampleImage());
   const [fileName, setFileName] = useState("Sample");
   const [selectedId, setSelectedId] = useState(() => getDitherLayer(start.preset).id);
-  const [mode, setMode] = useState<CompareMode>("split");
+  const [mode, setMode] = useState<CompareMode>("result");
   const [galleryOpen, setGalleryOpen] = useState(false);
   /** Style shown on the canvas while hovering in the gallery; null shows the chosen one. */
   const [previewStyle, setPreviewStyle] = useState<string | null>(null);
@@ -361,8 +361,8 @@ export function App() {
   const inspectorSpace = showInspector && wide ? INSPECTOR_SPACE : 0;
   const insets = {
     left: showLayers && wide ? LAYERS_SPACE : 0,
-    // While the gallery is docked, the image re-fits into the space left of it.
-    right: inspectorSpace + (galleryOpen && wide ? GALLERY_SPACE : 0),
+    // The gallery takes the inspector's place while open; the image re-fits beside it.
+    right: galleryOpen && wide ? GALLERY_SPACE : inspectorSpace,
   };
   const effects = doc.layers.filter((l) => l.kind === "effect" && l.enabled).length;
   const status = previewStyle
@@ -458,6 +458,7 @@ export function App() {
           <aside className="panel layers-panel" aria-label="Layers">
             <LayersPanel
               layers={doc.layers}
+              ditherThumbnail={thumbnails[dither.algorithm] ?? null}
               selectedId={selected.id}
               onSelect={setSelectedId}
               onToggle={(id) => update(mapLayer(id, (l) => ({ ...l, enabled: !l.enabled })))}
@@ -472,7 +473,6 @@ export function App() {
           <Gallery
             selected={dither.algorithm}
             thumbnails={thumbnails}
-            rightInset={inspectorSpace}
             onPreview={setPreviewStyle}
             onChoose={(id) => {
               chooseStyle(id);
@@ -487,7 +487,8 @@ export function App() {
         )}
 
         {showInspector && (
-          <aside className="panel inspector" aria-label="Inspector">
+          // Hidden rather than unmounted while browsing styles, so it keeps its scroll position.
+          <aside className="panel inspector" aria-label="Inspector" hidden={galleryOpen}>
             <Inspector
               layer={selected}
               workingWidth={source.width}

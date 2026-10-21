@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { EFFECTS, EFFECT_CATEGORY_LABELS, FAMILY_LABELS, getAlgorithm, getEffect, type EffectCategory, type Layer } from "@dither-dally/core";
-import { EyeIcon, EyeOffIcon, PlusIcon, TrashIcon } from "./icons.tsx";
+import { Canvas } from "./Canvas.tsx";
+import { EyeIcon, EyeOffIcon, PhotoIcon, PlusIcon, SquareIcon, TrashIcon } from "./icons.tsx";
 
 interface Props {
   layers: Layer[];
+  /** Thumbnail of the current style, shown on the dither layer. */
+  ditherThumbnail: ImageData | null;
   selectedId: string;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
@@ -26,7 +29,7 @@ export function layerTitle(layer: Layer): { name: string; detail: string } {
  * The layer stack, applied top to bottom. Drag rows to reorder (or
  * Alt + ↑/↓ on the selected row), toggle visibility, remove effects.
  */
-export function LayersPanel({ layers, selectedId, onSelect, onToggle, onRemove, onMove, onAdd }: Props) {
+export function LayersPanel({ layers, ditherThumbnail, selectedId, onSelect, onToggle, onRemove, onMove, onAdd }: Props) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   /** Where to show the add-effect menu (below the + button), or null when closed. */
@@ -66,7 +69,9 @@ export function LayersPanel({ layers, selectedId, onSelect, onToggle, onRemove, 
         </div>
       </header>
 
-      <p className="layers-caption">Your image</p>
+      <p className="layers-end">
+        <PhotoIcon size={14} /> Original image
+      </p>
       <ol
         className="layer-list"
         onDragOver={(e) => e.preventDefault()}
@@ -123,9 +128,15 @@ export function LayersPanel({ layers, selectedId, onSelect, onToggle, onRemove, 
                   }
                 }}
               >
-                <span className={`layer-badge ${layer.kind === "dither" ? "dither" : getEffect(layer.effect).category}`} aria-hidden="true">
-                  {layer.kind === "dither" ? "D" : name.charAt(0)}
-                </span>
+                {layer.kind === "dither" ? (
+                  <span className="layer-badge dither" aria-hidden="true">
+                    <Canvas image={ditherThumbnail} label="" />
+                  </span>
+                ) : (
+                  <span className={`layer-badge ${getEffect(layer.effect).category}`} aria-hidden="true">
+                    {name.charAt(0)}
+                  </span>
+                )}
                 <span className="layer-text">
                   <span className="layer-name">{name}</span>
                   <span className="layer-detail">{detail}</span>
@@ -151,8 +162,10 @@ export function LayersPanel({ layers, selectedId, onSelect, onToggle, onRemove, 
           );
         })}
       </ol>
-      <p className="layers-caption">Output</p>
-      <p className="layers-hint">Layers run top to bottom. Drag to reorder; effects above the dither shape the image, effects below it treat the result.</p>
+      <p className="layers-end">
+        <SquareIcon size={14} /> Result
+      </p>
+      <p className="layers-hint">Effects above the dither shape the image; effects below it treat the result. Drag to reorder.</p>
     </div>
   );
 }
