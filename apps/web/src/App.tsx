@@ -35,7 +35,7 @@ import { FULL_MAX_SIDE, exportPng, loadImageFile, sampleImage, thumbnailData, to
 import type { Side } from "./EffectList.tsx";
 import { Inspector, type TextAction } from "./Inspector.tsx";
 import { downloadPreset, hashForPreset, initialPreset, noticeFor, presetFromFile, presetFromHash } from "./presetLink.ts";
-import { projectFileBlob, projectStore, readProjectFile, thumbnailBlob } from "./projects.ts";
+import { projectFileBlob, projectStore, readProjectFile, sameSettings, thumbnailBlob, type ImportedProject } from "./projects.ts";
 import { Toolbar } from "./Toolbar.tsx";
 import { createRenderWorker, renderOnce, useRender } from "./useDither.ts";
 import { useHistory } from "./useHistory.ts";
@@ -373,7 +373,10 @@ export function App() {
    * saved in this browser from then on; `preset` replaces the settings
    * (reopening a project, or a project file).
    */
-  async function openFile(file: File | undefined, opts: { projectId?: string; preset?: Preset; name?: string } = {}): Promise<boolean> {
+  async function openFile(
+    file: File | undefined,
+    opts: { projectId?: string; newId?: string; preset?: Preset; name?: string } = {},
+  ): Promise<boolean> {
     if (!file) return false;
     if (!(await openSource(file))) return false;
     setWelcome(false);
@@ -383,13 +386,13 @@ export function App() {
     setSourceFile(file);
     if (opts.projectId) {
       setProjectId(opts.projectId);
-      void projectStore.update(opts.projectId, {}).catch(() => {}); // move it to the top of Recent
+      void projectStore.touch(opts.projectId).catch(() => {}); // move it to the top of Recent
       return true;
     }
     setProjectId(null);
     if (!(await projectStore.available())) return true;
     try {
-      setProjectId(await projectStore.create(name, opts.preset ?? docRef.current, file));
+      setProjectId(await projectStore.create(name, opts.preset ?? docRef.current, file, opts.newId));
     } catch {
       say("Couldn't save this project in the browser (storage may be full). Use Save project file to keep it.", true);
     }
@@ -422,15 +425,40 @@ export function App() {
     }
   }
 
+  /** A project file whose project is also saved here, with different, newer settings. */
+  const [conflict, setConflict] = useState<ImportedProject | null>(null);
+
+  /**
+   * Opens a project file. If its project is already saved in this browser
+   * it opens that entry instead of adding a duplicate: with the file's
+   * settings when they're the same or the file is newer, and asking first
+   * when this browser has newer, different edits.
+   */
   async function openProjectFile(file: File | undefined) {
     if (!file) return;
     try {
       const project = await readProjectFile(file);
-      await openFile(project.source, { preset: project.preset, name: project.name });
+      const existing = project.id ? await projectStore.get(project.id).catch(() => null) : null;
+      if (!existing || !project.id) {
+        await openFile(project.source, { preset: project.preset, name: project.name, newId: project.id });
+      } else if (sameSettings(existing.preset, project.preset)) {
+        await openRecent(project.id);
+      } else if ((project.savedAt ?? 0) >= existing.updatedAt) {
+        await applyFileVersion(project);
+      } else {
+        setConflict(project);
+        return;
+      }
       say(noticeFor(`Opened "${project.name}".`, project.warnings));
     } catch (err) {
       say(err instanceof Error ? err.message : `Couldn't open "${file.name}".`, true);
     }
+  }
+
+  /** Replaces the saved project's settings with a project file's, and opens it. */
+  async function applyFileVersion(project: ImportedProject) {
+    await projectStore.update(project.id!, { preset: project.preset });
+    await openRecent(project.id!);
   }
 
   async function saveProjectFile() {
@@ -440,7 +468,7 @@ export function App() {
       new File([await new Promise<Blob>((resolve) => (original as HTMLCanvasElement).toBlob((b) => resolve(b!), "image/png"))], "Sample.png", {
         type: "image/png",
       });
-    const url = URL.createObjectURL(projectFileBlob(fileName, doc, source));
+    const url = URL.createObjectURL(projectFileBlob(fileName, doc, source, projectId ?? undefined));
     const a = document.createElement("a");
     a.href = url;
     a.download = `${fileName}.dally`;
@@ -849,6 +877,53 @@ export function App() {
         )}
 
         {restoring && <RestoreCover />}
+
+        {conflict && (
+          <div className="sheet-backdrop above-welcome">
+            <div className="sheet wide" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
+              <h2 id="conflict-title">“{conflict.name}” has newer changes here</h2>
+              <p>
+                This browser has edits to this project made after the file was saved. Which version do you want to open?
+              </p>
+              <div className="sheet-buttons">
+                <button
+                  type="button"
+                  className="push"
+                  onClick={() => {
+                    const p = conflict;
+                    setConflict(null);
+                    void openFile(p.source, { preset: p.preset, name: `${p.name} (from file)` });
+                  }}
+                >
+                  Keep both
+                </button>
+                <button
+                  type="button"
+                  className="push"
+                  onClick={() => {
+                    const p = conflict;
+                    setConflict(null);
+                    void applyFileVersion(p);
+                  }}
+                >
+                  Use the file's version
+                </button>
+                <button
+                  type="button"
+                  className="push primary"
+                  autoFocus
+                  onClick={() => {
+                    const id = conflict.id!;
+                    setConflict(null);
+                    void openRecent(id);
+                  }}
+                >
+                  Keep this browser's version
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {welcome && (
           <Welcome

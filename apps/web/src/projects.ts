@@ -12,7 +12,10 @@ export interface ProjectSummary {
   id: string;
   name: string;
   createdAt: number;
+  /** When the settings last changed. */
   updatedAt: number;
+  /** When it was last opened (older records may not have one). */
+  openedAt?: number;
   /** MIME type of the source, to tell images from videos. */
   sourceType: string;
   thumbnail: Blob | null;
@@ -78,20 +81,19 @@ export const projectStore = {
     }
   },
 
-  /** Most recently changed first. */
+  /** Most recently edited or opened first. */
   async list(): Promise<ProjectSummary[]> {
     const tx = (await open()).transaction("projects");
     const all = await done(tx.objectStore("projects").getAll() as IDBRequest<ProjectRecord[]>);
     return all
-      .map(({ id, name, createdAt, updatedAt, sourceType, thumbnail }) => ({ id, name, createdAt, updatedAt, sourceType, thumbnail }))
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+      .map(({ id, name, createdAt, updatedAt, openedAt, sourceType, thumbnail }) => ({ id, name, createdAt, updatedAt, openedAt, sourceType, thumbnail }))
+      .sort((a, b) => Math.max(b.updatedAt, b.openedAt ?? 0) - Math.max(a.updatedAt, a.openedAt ?? 0));
   },
 
-  /** Starts a project for a newly opened file. Resolves with its id. */
-  async create(name: string, preset: Preset, source: File): Promise<string> {
-    const id = crypto.randomUUID();
+  /** Starts a project for a newly opened file (keeping `id` when it comes from a project file). Resolves with its id. */
+  async create(name: string, preset: Preset, source: File, id: string = crypto.randomUUID()): Promise<string> {
     const now = Date.now();
-    const record: ProjectRecord = { id, name, preset, createdAt: now, updatedAt: now, sourceType: source.type, sourceName: source.name, thumbnail: null };
+    const record: ProjectRecord = { id, name, preset, createdAt: now, updatedAt: now, openedAt: now, sourceType: source.type, sourceName: source.name, thumbnail: null };
     const tx = (await open()).transaction(["projects", "sources"], "readwrite");
     tx.objectStore("sources").put(source, id);
     tx.objectStore("projects").put(record);
@@ -104,14 +106,34 @@ export const projectStore = {
     return id;
   },
 
-  /** Saves new settings (and optionally a thumbnail) for a project. */
+  /**
+   * Saves settings and/or a thumbnail. The edit time only moves when the
+   * settings really changed, so it can be compared with a project file's.
+   */
   async update(id: string, changes: { preset?: Preset; thumbnail?: Blob }): Promise<void> {
     const tx = (await open()).transaction("projects", "readwrite");
     const store = tx.objectStore("projects");
     const record = await done(store.get(id) as IDBRequest<ProjectRecord | undefined>);
     if (!record) return; // removed meanwhile
-    store.put({ ...record, ...changes, updatedAt: Date.now() });
+    const edited = changes.preset !== undefined && !sameSettings(record.preset, changes.preset);
+    store.put({ ...record, ...changes, updatedAt: edited ? Date.now() : record.updatedAt });
     await finished(tx);
+  },
+
+  /** Marks a project as just opened, moving it to the top of Recent. */
+  async touch(id: string): Promise<void> {
+    const tx = (await open()).transaction("projects", "readwrite");
+    const store = tx.objectStore("projects");
+    const record = await done(store.get(id) as IDBRequest<ProjectRecord | undefined>);
+    if (record) store.put({ ...record, openedAt: Date.now() });
+    await finished(tx);
+  },
+
+  /** A project's details without its source, or null if it isn't saved here. */
+  async get(id: string): Promise<(ProjectSummary & { preset: Preset }) | null> {
+    const tx = (await open()).transaction("projects");
+    const record = await done(tx.objectStore("projects").get(id) as IDBRequest<ProjectRecord | undefined>);
+    return record ?? null;
   },
 
   /** The settings and source file to reopen a project. */
@@ -134,19 +156,39 @@ export const projectStore = {
 };
 
 /** A project file (.dally) for the current work: header, then the source file as is. */
-export function projectFileBlob(name: string, preset: Preset, source: File): Blob {
-  const header = encodeProjectHeader({ name, preset, source: { name: source.name, type: source.type } });
+export function projectFileBlob(name: string, preset: Preset, source: File, id?: string): Blob {
+  const header = encodeProjectHeader({ name, preset, source: { name: source.name, type: source.type }, id, savedAt: Date.now() });
   return new Blob([header as BlobPart, source], { type: "application/octet-stream" });
 }
 
 /** Reads a project file without copying its (possibly large) source into memory. */
-export async function readProjectFile(file: File): Promise<{ name: string; preset: Preset; warnings: string[]; source: File }> {
+export interface ImportedProject {
+  name: string;
+  preset: Preset;
+  warnings: string[];
+  source: File;
+  id?: string;
+  savedAt?: number;
+}
+
+export async function readProjectFile(file: File): Promise<ImportedProject> {
   const prefix = new Uint8Array(await file.slice(0, PROJECT_PREFIX_BYTES).arrayBuffer());
   const length = projectHeaderLength(prefix);
   const header = decodeProjectHeader(new Uint8Array(await file.slice(0, length).arrayBuffer()));
   const source = new File([file.slice(header.sourceOffset)], header.source.name, { type: header.source.type });
   if (source.size === 0) throw new Error("This project file is missing its image.");
-  return { name: header.name, preset: header.preset, warnings: header.warnings, source };
+  return { name: header.name, preset: header.preset, warnings: header.warnings, source, id: header.id, savedAt: header.savedAt };
+}
+
+/** Whether two sets of settings are the same, whatever order their keys were written in. */
+export function sameSettings(a: Preset, b: Preset): boolean {
+  const canonical = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(canonical)
+      : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical((v as Record<string, unknown>)[k])]))
+        : v;
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }
 
 /** A small PNG of the result for the Recent list. */

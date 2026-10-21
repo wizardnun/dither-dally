@@ -23,11 +23,20 @@ export interface ProjectInfo {
   name: string;
   preset: Preset;
   source: { name: string; type: string };
+  /** The project's id where it was saved, so reopening it doesn't make a duplicate. */
+  id?: string;
+  /** When the file was saved (ms since 1970), to tell which copy is newer. */
+  savedAt?: number;
 }
+
+/** Ids are generated UUIDs; anything else in a file is ignored. */
+const ID = /^[A-Za-z0-9-]{1,64}$/;
 
 /** The bytes that come before the source file. */
 export function encodeProjectHeader(info: ProjectInfo): Uint8Array {
-  const json = new TextEncoder().encode(JSON.stringify({ name: info.name, preset: info.preset, source: info.source }));
+  const json = new TextEncoder().encode(
+    JSON.stringify({ name: info.name, preset: info.preset, source: info.source, id: info.id, savedAt: info.savedAt }),
+  );
   const out = new Uint8Array(PROJECT_PREFIX_BYTES + json.length);
   for (let i = 0; i < MAGIC.length; i++) out[i] = MAGIC.charCodeAt(i);
   const view = new DataView(out.buffer);
@@ -71,7 +80,9 @@ export function decodeProjectHeader(bytes: Uint8Array): ProjectInfo & { warnings
   const sourceName = typeof json.source.name === "string" && json.source.name ? json.source.name : "image";
   const name = typeof json.name === "string" && json.name.trim() ? json.name.trim().slice(0, 120) : sourceName.replace(/\.[^.]+$/, "");
   const { preset, warnings } = parsePreset(json.preset);
-  return { name, preset, source: { name: sourceName, type }, warnings, sourceOffset: end };
+  const id = typeof json.id === "string" && ID.test(json.id) ? json.id : undefined;
+  const savedAt = typeof json.savedAt === "number" && Number.isFinite(json.savedAt) && json.savedAt > 0 ? json.savedAt : undefined;
+  return { name, preset, source: { name: sourceName, type }, id, savedAt, warnings, sourceOffset: end };
 }
 
 /** A whole project file in memory (for small sources and tests; the app streams from a Blob instead). */

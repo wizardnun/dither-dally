@@ -65,4 +65,15 @@ describe("project files", () => {
     const back = unpackProject(packProject({ ...info, name: "  " }, source));
     expect(back.name).toBe("beach");
   });
+
+  it("carries the project's id and save time, and ignores bad ones", () => {
+    const back = unpackProject(packProject({ ...info, id: "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90", savedAt: 1792557769872 }, source));
+    expect(back.id).toBe("3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90");
+    expect(back.savedAt).toBe(1792557769872);
+    const odd = unpackProject(packProject({ ...info, id: "../../etc", savedAt: -5 }, source));
+    expect(odd.id).toBeUndefined();
+    expect(odd.savedAt).toBeUndefined();
+    // Files from before ids were saved still open.
+    expect(unpackProject(packProject(info, source)).id).toBeUndefined();
+  });
 });

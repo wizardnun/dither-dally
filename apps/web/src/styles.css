@@ -1580,6 +1580,12 @@ canvas.overlay {
   background: rgba(0, 0, 0, 0.2);
 }
 
+/* Sheets that can appear from the welcome screen sit above it. */
+.sheet-backdrop.above-welcome {
+  position: fixed;
+  z-index: 50;
+}
+
 .sheet {
   display: grid;
   gap: 10px;
@@ -1619,8 +1625,13 @@ canvas.overlay {
   justify-self: start;
 }
 
+.sheet.wide {
+  width: min(540px, calc(100% - 32px));
+}
+
 .sheet-buttons {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 6px;
