@@ -306,3 +306,66 @@ export const triangles: AlgorithmDefinition = {
     return fillCells(input, palette, ctx.color, densify(keys, w, h), { outlines: Boolean(params.outlines) });
   },
 };
+
+/**
+ * The corners of a snub square tiling with unit edges: squares turned ±15°
+ * on a lattice of side 2·cos 15°, four corners per lattice cell. Every
+ * corner has five equidistant neighbours, so their Voronoi cells are the
+ * congruent pentagons of the Cairo tiling.
+ */
+const CAIRO_SIDE = 2 * Math.cos(Math.PI / 12);
+const CAIRO_POINTS: readonly (readonly [number, number])[] = [0, 1, 2, 3].map((k) => {
+  const a = Math.PI / 12 + Math.PI / 4 + (k * Math.PI) / 2;
+  return [Math.cos(a) / Math.SQRT2, Math.sin(a) / Math.SQRT2] as const;
+});
+
+export const pentagons: AlgorithmDefinition = {
+  id: "pentagons",
+  name: "Pentagons",
+  family: "polygon",
+  summary: "The Cairo tiling: identical five-sided tiles in interlocking pairs, like a paved street.",
+  controls: [
+    { kind: "slider", id: "cell", label: "Cell size", min: 4, max: 96, step: 1, default: 16, unit: "px" },
+    { kind: "slider", id: "angle", label: "Angle", min: 0, max: 89, step: 1, default: 0, unit: "°" },
+    { kind: "toggle", id: "outlines", label: "Outlines", default: false },
+  ],
+  run: (input, palette, params, ctx) => {
+    // Cell size is the tile's length; one lattice cell holds four tiles.
+    const unit = Number(params.cell ?? 16) / (CAIRO_SIDE / 2);
+    const a = (Number(params.angle ?? 0) * Math.PI) / 180;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const { width: w, height: h } = input;
+    const keys = new Int32Array(w * h);
+    const STRIDE = 1 << 13;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        // Into lattice units, rotated, relative to the image centre.
+        const fx = x + 0.5 - w / 2;
+        const fy = y + 0.5 - h / 2;
+        const u = (fx * cos + fy * sin) / unit;
+        const v = (-fx * sin + fy * cos) / unit;
+        const i0 = Math.round(u / CAIRO_SIDE);
+        const j0 = Math.round(v / CAIRO_SIDE);
+        let best = 0;
+        let bestD = Infinity;
+        for (let j = j0 - 1; j <= j0 + 1; j++) {
+          for (let i = i0 - 1; i <= i0 + 1; i++) {
+            for (let k = 0; k < 4; k++) {
+              const [px, py] = CAIRO_POINTS[k]!;
+              const dx = u - (i * CAIRO_SIDE + px);
+              const dy = v - (j * CAIRO_SIDE + py);
+              const d = dx * dx + dy * dy;
+              if (d < bestD) {
+                bestD = d;
+                best = ((j + STRIDE / 2) * STRIDE + (i + STRIDE / 2)) * 4 + k;
+              }
+            }
+          }
+        }
+        keys[y * w + x] = best;
+      }
+    }
+    return fillCells(input, palette, ctx.color, densify(keys, w, h), { outlines: Boolean(params.outlines) });
+  },
+};

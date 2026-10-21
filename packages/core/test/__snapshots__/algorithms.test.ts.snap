@@ -12,6 +12,8 @@ exports[`braille > matches the golden output 1`] = `"4dd77c4887416482"`;
 
 exports[`burkes > matches the golden output 1`] = `"9a9202e94d68d836"`;
 
+exports[`checker > matches the golden output 1`] = `"9ebe4badf4ee9e7d"`;
+
 exports[`cmyk-halftone > matches the golden output 1`] = `"55f86da1801e863d"`;
 
 exports[`colour modes > floyd-steinberg golden output in linear/oklab mode 1`] = `"a070500165642f9f"`;
@@ -26,9 +28,15 @@ exports[`contours > matches the golden output 1`] = `"a525f9bb6af51b6f"`;
 
 exports[`crosshatch > matches the golden output 1`] = `"605c275085a48610"`;
 
+exports[`echoes > matches the golden output 1`] = `"21afe7caa0b2134c"`;
+
+exports[`edges > matches the golden output 1`] = `"27d1a1d35d33298b"`;
+
 exports[`engraving > matches the golden output 1`] = `"ace37058527070be"`;
 
 exports[`floyd-steinberg > matches the golden output 1`] = `"357eaf2c61e2e766"`;
+
+exports[`gaussian > matches the golden output 1`] = `"8f03e745a902f70d"`;
 
 exports[`halftone > matches the golden output 1`] = `"33482cb934680d12"`;
 
@@ -36,13 +44,19 @@ exports[`hexagons > matches the golden output 1`] = `"ecaf82039e891641"`;
 
 exports[`jarvis-judice-ninke > matches the golden output 1`] = `"a039ca936f7ca55f"`;
 
+exports[`moire > matches the golden output 1`] = `"5abb88f595a0a8b7"`;
+
 exports[`nearest > matches the golden output 1`] = `"4d2d2d9cc8fdcc04"`;
 
 exports[`none > matches the golden output 1`] = `"9d047fc639cafa1a"`;
 
+exports[`pentagons > matches the golden output 1`] = `"9f74080a6d982699"`;
+
 exports[`riemersma > matches the golden output 1`] = `"e4b915c8393770d8"`;
 
 exports[`rings > matches the golden output 1`] = `"5cbfdb8170da822e"`;
+
+exports[`ripple > matches the golden output 1`] = `"db80c442568c37da"`;
 
 exports[`shape-grid > matches the golden output 1`] = `"6ba7fb944a9cc098"`;
 
@@ -55,6 +69,8 @@ exports[`slip > matches the golden output 1`] = `"ace727d7a3de851b"`;
 exports[`spiral > matches the golden output 1`] = `"57845ac08891fb4e"`;
 
 exports[`stevenson-arce > matches the golden output 1`] = `"1df4dddb9fa7cafd"`;
+
+exports[`stipple > matches the golden output 1`] = `"114683b14b78c080"`;
 
 exports[`streak > matches the golden output 1`] = `"13049cb332580085"`;
 
@@ -69,5 +85,7 @@ exports[`two-row-sierra > matches the golden output 1`] = `"297466eb70782a6a"`;
 exports[`voronoi > matches the golden output 1`] = `"15d8d23f1236fe75"`;
 
 exports[`wave-lines > matches the golden output 1`] = `"cda13fd5af20724b"`;
+
+exports[`whirl > matches the golden output 1`] = `"fdf5fa1b1d5f954f"`;
 
 exports[`white-noise > matches the golden output 1`] = `"383f7e14d5f84061"`;

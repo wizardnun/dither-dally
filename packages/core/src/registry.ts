@@ -1,13 +1,14 @@
 import { nearestColor, noStyle, threshold } from "./basic.ts";
-import { hexagons, shapeGrid, triangles, voronoiCells } from "./cells.ts";
-import { KERNELS, diffusionAlgorithm } from "./diffusion.ts";
-import { slip, streak } from "./glitch.ts";
+import { hexagons, pentagons, shapeGrid, triangles, voronoiCells } from "./cells.ts";
+import { KERNELS, diffusionAlgorithm, gaussian } from "./diffusion.ts";
+import { ripple, slip, streak } from "./glitch.ts";
 import { cmykHalftone, halftone } from "./halftone.ts";
-import { contours, engraving, rings, spiral, waveLines } from "./lines.ts";
+import { contours, echoes, edges, engraving, moire, rings, spiral, waveLines } from "./lines.ts";
 import { bayer, blueNoise, whiteNoise } from "./ordered.ts";
-import { crosshatch } from "./pattern.ts";
+import { checker, crosshatch, stipple } from "./pattern.ts";
 import { riemersma } from "./riemersma.ts";
 import { ascii, braille } from "./text.ts";
+import { whirl } from "./whirl.ts";
 import type { AlgorithmDefinition, Family, Params } from "./types.ts";
 
 export const ALGORITHMS: readonly AlgorithmDefinition[] = [
@@ -15,7 +16,9 @@ export const ALGORITHMS: readonly AlgorithmDefinition[] = [
   nearestColor,
   threshold,
   ...KERNELS.map(diffusionAlgorithm),
+  gaussian,
   riemersma,
+  whirl,
   bayer,
   blueNoise,
   whiteNoise,
@@ -24,15 +27,22 @@ export const ALGORITHMS: readonly AlgorithmDefinition[] = [
   waveLines,
   rings,
   spiral,
+  moire,
+  echoes,
   engraving,
   crosshatch,
+  stipple,
+  checker,
   contours,
+  edges,
   shapeGrid,
   voronoiCells,
   hexagons,
   triangles,
+  pentagons,
   streak,
   slip,
+  ripple,
   ascii,
   braille,
 ];

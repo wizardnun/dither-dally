@@ -149,3 +149,84 @@ export const slip: AlgorithmDefinition = {
     return out;
   },
 };
+
+export const ripple: AlgorithmDefinition = {
+  id: "ripple",
+  name: "Ripple",
+  family: "glitch",
+  summary:
+    "Error runs along each row like Streak, but how far it carries rises and falls down the image, so smeared and crisp bands alternate like a rolling TV picture.",
+  controls: [
+    {
+      kind: "select",
+      id: "direction",
+      label: "Direction",
+      options: [
+        { value: "rows", label: "Rows" },
+        { value: "columns", label: "Columns" },
+      ],
+      default: "rows",
+    },
+    { kind: "slider", id: "period", label: "Band size", min: 4, max: 200, step: 1, default: 32, unit: "px" },
+    { kind: "slider", id: "depth", label: "Depth", help: "How much the carry drops in the crisp bands.", min: 0, max: 100, step: 1, default: 80, unit: "%" },
+    {
+      kind: "slider",
+      id: "bleed",
+      label: "Bleed",
+      help: "Share of the error handed to the next row instead, so bands drip into each other.",
+      min: 0,
+      max: 100,
+      step: 1,
+      default: 0,
+      unit: "%",
+    },
+  ],
+  run: (input, palette, p, ctx) => {
+    const { width: w, height: h, data: src } = input;
+    const columns = p.direction === "columns";
+    const period = Math.max(1, num(p.period, 32));
+    const depth = num(p.depth, 80) / 100;
+    const bleed = num(p.bleed, 0) / 100;
+    const model = createColorModel(palette, ctx.color);
+    const pw = model.paletteWorking;
+    const out = createBuffer(w, h);
+    const dst = out.data;
+    const lines = columns ? w : h;
+    const len = columns ? h : w;
+    // Error waiting for each position of the next line.
+    let down = new Float32Array(len * 3);
+    let next = new Float32Array(len * 3);
+    for (let line = 0; line < lines; line++) {
+      const carry = 1 - depth * (0.5 - 0.5 * Math.cos((2 * Math.PI * line) / period));
+      let er = 0;
+      let eg = 0;
+      let eb = 0;
+      next.fill(0);
+      for (let k = 0; k < len; k++) {
+        const x = columns ? line : k;
+        const y = columns ? k : line;
+        const i = (y * w + x) * 4;
+        const r = model.toWorking(src[i]!) + er + down[k * 3]!;
+        const g = model.toWorking(src[i + 1]!) + eg + down[k * 3 + 1]!;
+        const b = model.toWorking(src[i + 2]!) + eb + down[k * 3 + 2]!;
+        const idx = model.nearest(r, g, b);
+        const c = palette[idx]!;
+        dst[i] = c[0];
+        dst[i + 1] = c[1];
+        dst[i + 2] = c[2];
+        dst[i + 3] = src[i + 3]!;
+        const dr = (r - pw[idx * 3]!) * carry;
+        const dg = (g - pw[idx * 3 + 1]!) * carry;
+        const db = (b - pw[idx * 3 + 2]!) * carry;
+        er = dr * (1 - bleed);
+        eg = dg * (1 - bleed);
+        eb = db * (1 - bleed);
+        next[k * 3] = dr * bleed;
+        next[k * 3 + 1] = dg * bleed;
+        next[k * 3 + 2] = db * bleed;
+      }
+      [down, next] = [next, down];
+    }
+    return out;
+  },
+};

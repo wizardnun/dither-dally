@@ -149,6 +149,42 @@ function thresholdDither(
   return fieldDither(input, palette, color, (x, y) => offsetAt(x, y) + 0.5);
 }
 
+const CURVE_CONTROL = {
+  kind: "slider",
+  id: "curve",
+  label: "Curvature",
+  help: "Bulges the pattern like an old curved TV screen: it shrinks toward the edges and corners.",
+  min: 0,
+  max: 100,
+  step: 1,
+  default: 0,
+  unit: "%",
+} as const;
+
+/**
+ * The CRT bulge as a factor k: the tile is read at centre + d·(1 + k·|d|²),
+ * with d measured from the image centre. Full curvature reads 1.5× as far
+ * out at the corners. 0 means no warp.
+ */
+export function curveFactor(params: Params, w: number, h: number): number {
+  const curve = Number(params.curve ?? 0) / 100;
+  return curve > 0 ? (curve * 0.5) / ((w * w + h * h) / 4) : 0;
+}
+
+/** A tile lookup through the bulge. Without curvature it's the plain repeating tile. */
+function tiled(n: number, w: number, h: number, k: number, rank: (tx: number, ty: number) => number) {
+  if (k === 0) return (x: number, y: number) => rank(x % n, y % n);
+  const cx = w / 2;
+  const cy = h / 2;
+  const mod = (v: number) => ((v % n) + n) % n;
+  return (x: number, y: number) => {
+    const dx = x + 0.5 - cx;
+    const dy = y + 0.5 - cy;
+    const f = 1 + k * (dx * dx + dy * dy);
+    return rank(mod(Math.floor(cx + dx * f)), mod(Math.floor(cy + dy * f)));
+  };
+}
+
 export const bayer: AlgorithmDefinition = {
   id: "bayer",
   name: "Bayer",
@@ -168,12 +204,14 @@ export const bayer: AlgorithmDefinition = {
       ],
       default: "4",
     },
+    CURVE_CONTROL,
   ],
   run: (input, palette, params, ctx) => {
     const n = Number(params.size ?? 4);
     const m = bayerMatrix(n);
     const cells = n * n;
-    return thresholdDither(input, palette, ctx.color ?? DEFAULT_COLOR, (x, y) => (m[y % n]![x % n]! + 0.5) / cells - 0.5);
+    const k = curveFactor(params, input.width, input.height);
+    return thresholdDither(input, palette, ctx.color ?? DEFAULT_COLOR, tiled(n, input.width, input.height, k, (x, y) => (m[y]![x]! + 0.5) / cells - 0.5));
   },
 };
 
@@ -196,12 +234,14 @@ export const blueNoise: AlgorithmDefinition = {
       ],
       default: "64",
     },
+    CURVE_CONTROL,
   ],
   run: (input, palette, params, ctx) => {
     const n = Number(params.size ?? 64);
     const tex = cachedBlueNoise(n, ctx.seed);
     const cells = n * n;
-    return thresholdDither(input, palette, ctx.color ?? DEFAULT_COLOR, (x, y) => (tex[(y % n) * n + (x % n)]! + 0.5) / cells - 0.5);
+    const k = curveFactor(params, input.width, input.height);
+    return thresholdDither(input, palette, ctx.color ?? DEFAULT_COLOR, tiled(n, input.width, input.height, k, (x, y) => (tex[y * n + x]! + 0.5) / cells - 0.5));
   },
 };
 

@@ -1,6 +1,18 @@
 import {
+  SPILL,
+  brightPeaks,
+  cellColours,
+  curveFactor,
+  darkest,
+  layerSeed,
+  lightest,
+  orbLayout,
+  parseHex,
+  moireRanks,
   mulberry32,
   paletteSpread,
+  stippleRanks,
+  subpixelSettings,
   thresholdTile,
   type Layer,
   type LayerAccelerator,
@@ -13,10 +25,16 @@ import {
 /**
  * Runs the layers whose pixels are independent on the GPU with WebGPU:
  *
- * - threshold styles (Bayer, blue noise, white noise, Halftone, Wave lines,
- *   Rings, Spiral, Crosshatch): each pixel's rank, then its nearest palette
- *   colour, in one compute pass;
- * - Blur, Sharpen and Bloom: the same three-box Gaussian as the CPU.
+ * - threshold styles (Bayer and blue noise, curved or not, white noise,
+ *   Halftone, Wave lines, Rings, Spiral, Crosshatch, Checker, Echoes from
+ *   peaks found on the CPU, and Moiré and Stipple from their cached rank
+ *   fields): each pixel's rank, then its nearest palette colour, in one
+ *   compute pass;
+ * - Edges: brightness, the same three-box blur, then a Sobel pass;
+ * - Blur, Sharpen and Bloom: the same three-box Gaussian as the CPU;
+ * - Glow orbs: the orbs laid out on the CPU, summed per pixel;
+ * - Subpixels: cell colours from the CPU, then bars, the same blurs and a
+ *   final glow-and-spill pass.
  *
  * Everything else, and OKLab matching, stays on the CPU (the accelerator
  * returns null). The CPU code in core is the reference: results match it
@@ -39,6 +57,11 @@ const MODES: Record<string, number> = {
   rings: 4,
   spiral: 5,
   crosshatch: 6,
+  checker: 7,
+  echoes: 8,
+  // Rank fields that don't depend on the image: core caches them and the GPU reads them per pixel.
+  moire: 1,
+  stipple: 1,
 };
 const SHAPES = ["round", "diamond", "square", "line"];
 const HATCH_ANGLES = [45, -45, 0, 90];
@@ -79,7 +102,18 @@ fn rankAt(x: u32, y: u32, i: u32) -> f32 {
   let px = f32(x) + 0.5;
   let py = f32(y) + 0.5;
   switch ints[3] {
-    case 0u: { let n = ints[4]; return ranks[(y % n) * n + (x % n)]; }
+    case 0u: {
+      let n = ints[4];
+      let k = nums[1];
+      if (k == 0.0) { return ranks[(y % n) * n + (x % n)]; }
+      // CRT bulge: read the tile further out toward the edges.
+      let d = vec2<f32>(px - nums[2], py - nums[3]);
+      let t = floor(vec2<f32>(nums[2], nums[3]) + d * (1.0 + k * dot(d, d)));
+      let ni = i32(n);
+      let tx = u32(((i32(t.x) % ni) + ni) % ni);
+      let ty = u32(((i32(t.y) % ni) + ni) % ni);
+      return ranks[ty * n + tx];
+    }
     case 1u: { return ranks[i]; }
     case 2u: {
       let cell = nums[1]; let c = nums[2]; let s = nums[3];
@@ -100,6 +134,18 @@ fn rankAt(x: u32, y: u32, i: u32) -> f32 {
     case 5u: {
       let dx = px - nums[2]; let dy = py - nums[3];
       return lineRank(sqrt(dx * dx + dy * dy) / nums[1] + nums[4] * atan2(dy, dx) / (2.0 * PI));
+    }
+    case 8u: {
+      var d = 3.4e38;
+      for (var k = 0u; k < ints[6]; k++) {
+        let dx = px - nums[2u + 2u * k]; let dy = py - nums[3u + 2u * k];
+        d = min(d, sqrt(dx * dx + dy * dy));
+      }
+      return lineRank(d / nums[1]);
+    }
+    case 7u: {
+      let size = u32(nums[1]);
+      return select(0.25, 0.75, ((x / size + y / size) & 1u) == 1u);
     }
     default: {
       let spacing = nums[1];
@@ -147,7 +193,8 @@ fn channel(px: u32, c: u32) -> f32 { return f32((px >> (8u * c)) & 255u); }
 fn luma(r: f32, g: f32, bl: f32) -> f32 { return 0.2126 * r + 0.7152 * g + 0.0722 * bl; }
 fn byte(v: f32) -> u32 { return u32(round(clamp(v, 0.0, 255.0))); }
 
-// Into floats: RGB as is, or for bloom (mode 2) only what's brighter than the threshold.
+// Into floats: RGB as is, for bloom (mode 2) only what's brighter than the threshold,
+// for edges (mode 3) brightness in the first channel.
 @compute @workgroup_size(${WG}, ${WG})
 fn unpack(@builtin(global_invocation_id) id: vec3<u32>) {
   let w = ints[0];
@@ -160,6 +207,10 @@ fn unpack(@builtin(global_invocation_id) id: vec3<u32>) {
     let t = nums[0];
     let l = luma(r, g, bl);
     k = select(0.0, (l - t) / (255.0 - t), l > t);
+  }
+  if (ints[4] == 3u) {
+    b[i * 3u] = luma(r, g, bl); b[i * 3u + 1u] = 0.0; b[i * 3u + 2u] = 0.0;
+    return;
   }
   b[i * 3u] = r * k; b[i * 3u + 1u] = g * k; b[i * 3u + 2u] = bl * k;
 }
@@ -184,6 +235,76 @@ fn box(@builtin(global_invocation_id) id: vec3<u32>) {
   b[o] = v.x; b[o + 1u] = v.y; b[o + 2u] = v.z;
 }
 
+// Glow orbs: Gaussian glows summed, screened over the source in the orbs' colour.
+// ints: width, height, orb count; nums: intensity, colour r g b (0–1), then x, y, 1/(2σ²) per orb.
+@compute @workgroup_size(${WG}, ${WG})
+fn glow(@builtin(global_invocation_id) id: vec3<u32>) {
+  let w = ints[0];
+  if (id.x >= w || id.y >= ints[1]) { return; }
+  let i = id.y * w + id.x;
+  let px = src[i];
+  let p = vec2<f32>(f32(id.x) + 0.5, f32(id.y) + 0.5);
+  var sum = 0.0;
+  for (var k = 0u; k < ints[2]; k++) {
+    let d = p - vec2<f32>(nums[4u + 3u * k], nums[5u + 3u * k]);
+    sum += exp(-dot(d, d) * nums[6u + 3u * k]);
+  }
+  let g = min(1.0, sum * nums[0]);
+  let f = vec3<f32>(channel(px, 0u), channel(px, 1u), channel(px, 2u));
+  let out = f + (vec3<f32>(255.0) - f) * g * vec3<f32>(nums[1], nums[2], nums[3]);
+  dst[i] = byte(out.x) | (byte(out.y) << 8u) | (byte(out.z) << 16u) | (px & 0xff000000u);
+}
+
+// Subpixels, 1: capsule bars lit by their cell's colour (cell colours in a, 3 per cell), into b.
+// ints: width, height, cell columns, stripes; nums: cell, half width, half height, corner radius, gain.
+fn capsule(d: vec2<f32>, half: vec2<f32>, r: f32) -> f32 {
+  let q = abs(d) - (half - vec2<f32>(r));
+  let dist = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - r;
+  return clamp(0.5 - dist, 0.0, 1.0);
+}
+
+@compute @workgroup_size(${WG}, ${WG})
+fn bars(@builtin(global_invocation_id) id: vec3<u32>) {
+  let w = ints[0];
+  if (id.x >= w || id.y >= ints[1]) { return; }
+  let cell = nums[0];
+  let half = vec2<f32>(nums[1], nums[2]);
+  let ci = floor(f32(id.x) / cell);
+  let cj = floor(f32(id.y) / cell);
+  let k = (u32(cj) * ints[2] + u32(ci)) * 3u;
+  let dy = f32(id.y) + 0.5 - (cj + 0.5) * cell;
+  let o = (id.y * w + id.x) * 3u;
+  var v = vec3<f32>(0.0);
+  if (ints[3] == 1u) {
+    let u = f32(id.x) + 0.5 - ci * cell;
+    let c = min(2u, u32(floor(u * 3.0 / cell)));
+    let m = capsule(vec2<f32>(u - (f32(c) + 0.5) * cell / 3.0, dy), half, nums[3]);
+    v[c] = a[k + c] * m * nums[4];
+  } else {
+    let m = capsule(vec2<f32>(f32(id.x) + 0.5 - (ci + 0.5) * cell, dy), half, nums[3]) * nums[4];
+    v = vec3<f32>(a[k], a[k + 1u], a[k + 2u]) * m;
+  }
+  b[o] = v.x; b[o + 1u] = v.y; b[o + 2u] = v.z;
+}
+
+// Subpixels, 2: defocused bars in a, their wide glow in b; glow tinted by the haze, overexposure spilt.
+// nums: glow, haze, tint r g b (0–1), spill.
+@compute @workgroup_size(${WG}, ${WG})
+fn screen(@builtin(global_invocation_id) id: vec3<u32>) {
+  let w = ints[0];
+  if (id.x >= w || id.y >= ints[1]) { return; }
+  let i = id.y * w + id.x;
+  let o = i * 3u;
+  let soft = vec3<f32>(a[o], a[o + 1u], a[o + 2u]);
+  let g0 = vec3<f32>(b[o], b[o + 1u], b[o + 2u]);
+  let gl = luma(g0.x, g0.y, g0.z);
+  let g = g0 + (gl * vec3<f32>(nums[2], nums[3], nums[4]) * 2.0 - g0) * nums[1];
+  let v = soft + g * nums[0];
+  let over = max(v - vec3<f32>(255.0), vec3<f32>(0.0));
+  let out = v + vec3<f32>((over.x + over.y + over.z) * nums[5]);
+  dst[i] = byte(out.x) | (byte(out.y) << 8u) | (byte(out.z) << 16u) | (src[i] & 0xff000000u);
+}
+
 // Back to bytes: mode 0 blur, 1 sharpen (amount), 2 bloom (intensity, screened over the source).
 @compute @workgroup_size(${WG}, ${WG})
 fn combine(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -203,6 +324,45 @@ fn combine(@builtin(global_invocation_id) id: vec3<u32>) {
   dst[i] = byte(out.x) | (byte(out.y) << 8u) | (byte(out.z) << 16u) | (px & 0xff000000u);
 }`;
 
+/** Edges: Sobel on blurred brightness (first channel of `a`), then ink, paper or the nearest palette colour. */
+const EDGES = /* wgsl */ `
+@group(0) @binding(0) var<storage, read> src: array<u32>;
+@group(0) @binding(1) var<storage, read> a: array<f32>;
+@group(0) @binding(2) var<storage, read> palette: array<vec4<f32>>;
+@group(0) @binding(3) var<storage, read_write> dst: array<u32>;
+@group(0) @binding(4) var<storage, read> ints: array<u32>;  // width, height, colours, fill, ink, paper
+@group(0) @binding(5) var<storage, read> nums: array<f32>;  // squared cut-off
+
+fn at(x: i32, y: i32) -> f32 {
+  let w = i32(ints[0]); let h = i32(ints[1]);
+  return a[u32(clamp(y, 0, h - 1) * w + clamp(x, 0, w - 1)) * 3u];
+}
+
+@compute @workgroup_size(${WG}, ${WG})
+fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+  let w = ints[0];
+  if (id.x >= w || id.y >= ints[1]) { return; }
+  let x = i32(id.x); let y = i32(id.y);
+  let gx = at(x + 1, y - 1) + 2.0 * at(x + 1, y) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2.0 * at(x - 1, y) - at(x - 1, y + 1);
+  let gy = at(x - 1, y + 1) + 2.0 * at(x, y + 1) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2.0 * at(x, y - 1) - at(x + 1, y - 1);
+  let i = id.y * w + id.x;
+  let px = src[i];
+  var best = ints[5];
+  if (gx * gx + gy * gy > nums[0]) {
+    best = ints[4];
+  } else if (ints[3] == 1u) {
+    let q = vec3<f32>(f32(px & 255u), f32((px >> 8u) & 255u), f32((px >> 16u) & 255u));
+    var bestDist = 3.4e38;
+    for (var k = 0u; k < ints[2]; k++) {
+      let d = q - palette[k].xyz;
+      let dist = d.x * d.x + d.y * d.y + d.z * d.z;
+      if (dist < bestDist) { bestDist = dist; best = k; }
+    }
+  }
+  let c = palette[best];
+  dst[i] = u32(c.x) | (u32(c.y) << 8u) | (u32(c.z) << 16u) | (px & 0xff000000u);
+}`;
+
 /** Box radii for the three-box Gaussian, exactly as core's gaussianBlur picks them. */
 function boxRadii(sigma: number): number[] {
   const passes = 3;
@@ -219,7 +379,16 @@ const num = (p: Params, id: string, fallback: number) => {
   return Number.isFinite(v) ? v : fallback;
 };
 
-type Pipelines = { field: GPUComputePipeline; unpack: GPUComputePipeline; box: GPUComputePipeline; combine: GPUComputePipeline };
+type Pipelines = {
+  field: GPUComputePipeline;
+  edges: GPUComputePipeline;
+  unpack: GPUComputePipeline;
+  box: GPUComputePipeline;
+  combine: GPUComputePipeline;
+  glow: GPUComputePipeline;
+  bars: GPUComputePipeline;
+  screen: GPUComputePipeline;
+};
 
 export class GpuAccelerator {
   private lost = false;
@@ -260,13 +429,17 @@ export class GpuAccelerator {
       const effectsLayout = layout([2, 3]);
       const make = (code: string, entryPoint: string, pipelineLayout: GPUPipelineLayout) =>
         device.createComputePipelineAsync({ layout: pipelineLayout, compute: { module: device.createShaderModule({ code }), entryPoint } });
-      const [field, unpack, box, combine] = await Promise.all([
+      const [field, edges, unpack, box, combine, glow, bars, screen] = await Promise.all([
         make(FIELD, "main", fieldLayout),
+        make(EDGES, "main", fieldLayout),
         make(EFFECTS, "unpack", effectsLayout),
         make(EFFECTS, "box", effectsLayout),
         make(EFFECTS, "combine", effectsLayout),
+        make(EFFECTS, "glow", effectsLayout),
+        make(EFFECTS, "bars", effectsLayout),
+        make(EFFECTS, "screen", effectsLayout),
       ]);
-      return new GpuAccelerator(device, { field, unpack, box, combine });
+      return new GpuAccelerator(device, { field, edges, unpack, box, combine, glow, bars, screen });
     } catch {
       return null;
     }
@@ -275,7 +448,7 @@ export class GpuAccelerator {
   /** Offers a layer to the GPU: its output, or null for the CPU to run it. */
   accelerate: LayerAccelerator = async (layer, input, s) => {
     if (this.lost || !this.fits(input)) return null;
-    return layer.kind === "dither" ? this.dither(layer, input, s) : this.effect(layer, input);
+    return layer.kind === "dither" ? this.dither(layer, input, s) : this.effect(layer, input, s);
   };
 
   private fits(input: PixelBuffer): boolean {
@@ -284,9 +457,11 @@ export class GpuAccelerator {
   }
 
   private async dither(layer: Extract<Layer, { kind: "dither" }>, input: PixelBuffer, s: PipelineSettings): Promise<PixelBuffer | null> {
-    const mode = MODES[layer.algorithm];
     // OKLab matching is non-linear; it stays on the CPU.
-    if (mode === undefined || s.color.metric !== "srgb" || s.palette.length === 0) return null;
+    if (s.color.metric !== "srgb" || s.palette.length === 0) return null;
+    if (layer.algorithm === "edges") return this.edges(layer.params, input, s.palette);
+    const mode = MODES[layer.algorithm];
+    if (mode === undefined) return null;
     const p = layer.params;
     const { width: w, height: h } = input;
     const ints = [w, h, s.palette.length, mode, 1, 0, 0];
@@ -298,6 +473,7 @@ export class GpuAccelerator {
         const tile = thresholdTile(layer.algorithm, p, s.seed)!;
         ranks = Float32Array.from(tile.ranks);
         ints[4] = tile.size;
+        nums.push(curveFactor(p, w, h), w / 2, h / 2);
         break;
       }
       case "white-noise": {
@@ -324,6 +500,21 @@ export class GpuAccelerator {
       case "spiral":
         nums.push(num(p, "spacing", 6), w / 2, h / 2, (p.turn === "ccw" ? -1 : 1) * Math.round(num(p, "arms", 1)));
         break;
+      case "moire":
+        ranks = moireRanks(w, h, p);
+        break;
+      case "stipple":
+        ranks = stippleRanks(w, h, p, s.seed);
+        break;
+      case "echoes": {
+        const peaks = brightPeaks(input, Math.round(num(p, "count", 6)), num(p, "separation", 60));
+        nums.push(num(p, "spacing", 6), ...peaks.flatMap((q) => [q.x, q.y]));
+        ints[6] = peaks.length;
+        break;
+      }
+      case "checker":
+        nums.push(Math.max(1, Math.round(num(p, "size", 1))));
+        break;
       case "crosshatch": {
         const dirs = HATCH_ANGLES.slice(0, Number(p.layers ?? 4));
         nums.push(Number(p.spacing ?? 6), ...dirs.flatMap((deg) => [Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)]));
@@ -339,8 +530,39 @@ export class GpuAccelerator {
     return run.read(out);
   }
 
-  private async effect(layer: Extract<Layer, { kind: "effect" }>, input: PixelBuffer): Promise<PixelBuffer | null> {
+  private async edges(p: Params, input: PixelBuffer, palette: Palette): Promise<PixelBuffer> {
+    const { width: w, height: h } = input;
+    const sigma = num(p, "smoothing", 1);
+    const cut = ((100 - num(p, "sensitivity", 70)) / 100) * 0.5 * 4 * 255;
+    const invert = Boolean(p.invert);
+    const ink = palette.indexOf(invert ? lightest(palette) : darkest(palette));
+    const paper = palette.indexOf(invert ? darkest(palette) : lightest(palette));
+    const run = this.session(input);
+    const floats = w * h * 3 * 4;
+    const ping = run.scratch(floats);
+    const pong = run.scratch(floats);
+    const empty = run.scratch(16);
+    const out = run.output();
+    const ints = (radius: number, horizontal: number) => run.storage(new Uint32Array([w, h, radius, horizontal, 3]));
+    // Brightness into pong, blurred like core's blurPlane (none when smoothing is 0), then Sobel.
+    run.dispatch(this.pipelines.unpack, [run.src, empty, pong, out, ints(0, 0), empty]);
+    if (sigma > 0) {
+      for (const r of boxRadii(sigma)) {
+        run.dispatch(this.pipelines.box, [run.src, pong, ping, out, ints(r, 1), empty]);
+        run.dispatch(this.pipelines.box, [run.src, ping, pong, out, ints(r, 0), empty]);
+      }
+    }
+    const pal = new Float32Array(palette.length * 4);
+    palette.forEach(([r, g, b], k) => pal.set([r, g, b, 0], k * 4));
+    const edgeInts = new Uint32Array([w, h, palette.length, p.fill ? 1 : 0, ink, paper]);
+    run.dispatch(this.pipelines.edges, [run.src, pong, run.storage(pal), out, run.storage(edgeInts), run.storage(new Float32Array([cut * cut]))]);
+    return run.read(out);
+  }
+
+  private async effect(layer: Extract<Layer, { kind: "effect" }>, input: PixelBuffer, s: PipelineSettings): Promise<PixelBuffer | null> {
     const p = layer.params;
+    if (layer.effect === "orbs") return this.orbs(p, input, layerSeed(layer, s.seed));
+    if (layer.effect === "subpixels") return this.subpixels(p, input);
     let mode: number;
     let sigma: number;
     let value = 0;
@@ -365,6 +587,55 @@ export class GpuAccelerator {
       run.dispatch(this.pipelines.box, [run.src, ping, pong, out, ints(r, 0), empty]);
     }
     run.dispatch(this.pipelines.combine, [run.src, pong, ping, out, ints(0, 0), run.storage(new Float32Array([value]))]);
+    return run.read(out);
+  }
+
+  private async orbs(p: Params, input: PixelBuffer, seed: number): Promise<PixelBuffer> {
+    const { width: w, height: h } = input;
+    const layout = orbLayout(w, h, p, seed);
+    const colour = parseHex(String(p.color ?? "#ffffff")).map((v) => v / 255);
+    const nums = new Float32Array([num(p, "intensity", 80) / 100, ...colour, ...layout.flatMap((o) => [o.x, o.y, 1 / (2 * o.sigma * o.sigma)])]);
+    const run = this.session(input);
+    const empty = run.scratch(16);
+    const out = run.output();
+    run.dispatch(this.pipelines.glow, [run.src, empty, run.scratch(16), out, run.storage(new Uint32Array([w, h, layout.length])), run.storage(nums)]);
+    return run.read(out);
+  }
+
+  private async subpixels(p: Params, input: PixelBuffer): Promise<PixelBuffer> {
+    const { width: w, height: h } = input;
+    const t = subpixelSettings(p);
+    const cells = cellColours(input, t.cell, t.centre);
+    const run = this.session(input);
+    const floats = w * h * 3 * 4;
+    const soft = run.scratch(floats);
+    const tmp = run.scratch(floats);
+    const glow = run.scratch(floats);
+    const empty = run.scratch(16);
+    const out = run.output();
+    const ints = (radius: number, horizontal: number) => run.storage(new Uint32Array([w, h, radius, horizontal, 0]));
+    run.dispatch(this.pipelines.bars, [
+      run.src,
+      run.storage(cells.rgb),
+      soft,
+      out,
+      run.storage(new Uint32Array([w, h, cells.cols, t.stripes ? 1 : 0])),
+      run.storage(new Float32Array([t.cell, t.bx, t.by, t.radius, t.gain])),
+    ]);
+    // Defocus in place (soft → tmp → soft per radius), then the glow from it into its own buffer.
+    if (t.focus > 0) {
+      for (const r of boxRadii(t.focus)) {
+        run.dispatch(this.pipelines.box, [run.src, soft, tmp, out, ints(r, 1), empty]);
+        run.dispatch(this.pipelines.box, [run.src, tmp, soft, out, ints(r, 0), empty]);
+      }
+    }
+    let from = soft;
+    for (const r of boxRadii(t.glowSigma)) {
+      run.dispatch(this.pipelines.box, [run.src, from, tmp, out, ints(r, 1), empty]);
+      run.dispatch(this.pipelines.box, [run.src, tmp, glow, out, ints(r, 0), empty]);
+      from = glow;
+    }
+    run.dispatch(this.pipelines.screen, [run.src, soft, glow, out, ints(0, 0), run.storage(new Float32Array([t.glow, t.haze, ...t.tint, SPILL]))]);
     return run.read(out);
   }
 

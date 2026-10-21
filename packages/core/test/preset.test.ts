@@ -18,7 +18,7 @@ describe("presets (version 2)", () => {
       ...defaultPreset("bayer"),
       layers: [
         { ...effectLayer("adjust"), id: "adj", params: { brightness: 10, contrast: 20, midtones: 0, saturation: -30, hue: 0 } },
-        { ...ditherLayer("bayer"), id: "dit", params: { size: "8" } },
+        { ...ditherLayer("bayer"), id: "dit", params: { size: "8", curve: 0 } },
         { ...effectLayer("tint"), id: "tnt", enabled: false, params: { color: "#00aaff", mode: "screen", opacity: 50 } },
       ],
       palette: { name: "Mine", colors: ["#101010", "#f0e0d0", "#ff0000"] },

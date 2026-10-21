@@ -353,6 +353,207 @@ export const vignette: EffectDefinition = {
   },
 };
 
+/** Orb centres (px), spreads σ (px) for the Glow orbs effect, from its settings and seed. */
+export function orbLayout(w: number, h: number, p: Params, seed: number): { x: number; y: number; sigma: number }[] {
+  const count = Math.round(num(p, "count", 6));
+  const size = num(p, "size", 80);
+  const variation = num(p, "variation", 50) / 100;
+  const rand = mulberry32(seed ^ 0x0eb5);
+  return Array.from({ length: count }, () => ({
+    x: rand() * w,
+    y: rand() * h,
+    sigma: Math.max(0.5, (size / 2) * (1 - variation * rand())),
+  }));
+}
+
+export const orbs: EffectDefinition = {
+  id: "orbs",
+  name: "Glow orbs",
+  category: "light",
+  summary: "Scatters soft round glows over the image. Before a dither they become pools of light the pattern melts into. Change the seed to move them.",
+  controls: [
+    { kind: "slider", id: "count", label: "Count", min: 1, max: 40, step: 1, default: 6 },
+    { kind: "slider", id: "size", label: "Size", min: 10, max: 400, step: 5, default: 80, unit: "px" },
+    { kind: "slider", id: "variation", label: "Size variation", min: 0, max: 100, step: 1, default: 50, unit: "%" },
+    { kind: "slider", id: "intensity", label: "Intensity", min: 0, max: 200, step: 5, default: 80, unit: "%" },
+    { kind: "color", id: "color", label: "Colour", default: "#ffffff" },
+  ],
+  run: (input, p, ctx) => {
+    const layout = orbLayout(input.width, input.height, p, ctx.seed);
+    const intensity = num(p, "intensity", 80) / 100;
+    const [cr, cg, cb] = parseHex(String(p.color ?? "#ffffff")).map((v) => v / 255) as [number, number, number];
+    return mapPixels(input, (r, g, b, x, y) => {
+      let glow = 0;
+      for (const o of layout) {
+        const dx = x + 0.5 - o.x;
+        const dy = y + 0.5 - o.y;
+        glow += Math.exp(-(dx * dx + dy * dy) / (2 * o.sigma * o.sigma));
+      }
+      // Screen the orb colour over the image.
+      const k = Math.min(1, glow * intensity);
+      return [r + (255 - r) * k * cr, g + (255 - g) * k * cg, b + (255 - b) * k * cb];
+    });
+  },
+};
+
+/**
+ * Average (or centre) colour of each square cell, 3 floats per cell, row by
+ * row. The screen-pixel grid behind Subpixels.
+ */
+export function cellColours(input: PixelBuffer, cell: number, centre: boolean): { cols: number; rows: number; rgb: Float32Array } {
+  const { width: w, height: h, data: src } = input;
+  const cols = Math.ceil(w / cell);
+  const rows = Math.ceil(h / cell);
+  const rgb = new Float32Array(cols * rows * 3);
+  if (centre) {
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const x = Math.min(w - 1, Math.floor((i + 0.5) * cell));
+        const y = Math.min(h - 1, Math.floor((j + 0.5) * cell));
+        const o = (y * w + x) * 4;
+        rgb.set([src[o]!, src[o + 1]!, src[o + 2]!], (j * cols + i) * 3);
+      }
+    }
+    return { cols, rows, rgb };
+  }
+  const n = new Float32Array(cols * rows);
+  for (let y = 0; y < h; y++) {
+    const row = Math.floor(y / cell) * cols;
+    for (let x = 0; x < w; x++) {
+      const k = row + Math.floor(x / cell);
+      const o = (y * w + x) * 4;
+      rgb[k * 3] = rgb[k * 3]! + src[o]!;
+      rgb[k * 3 + 1] = rgb[k * 3 + 1]! + src[o + 1]!;
+      rgb[k * 3 + 2] = rgb[k * 3 + 2]! + src[o + 2]!;
+      n[k] = n[k]! + 1;
+    }
+  }
+  for (let k = 0; k < n.length; k++) for (let c = 0; c < 3; c++) rgb[k * 3 + c] = rgb[k * 3 + c]! / n[k]!;
+  return { cols, rows, rgb };
+}
+
+/**
+ * Subpixels' settings in the units its passes use, shared with the GPU:
+ * cell size, the capsule's half width and height and corner radius (px),
+ * bar gain, both blur sigmas, glow, haze and its tint (0–1).
+ */
+export function subpixelSettings(p: Params) {
+  const cell = Math.max(2, Math.round(num(p, "cell", 12)));
+  const stripes = p.layout !== "led";
+  const gap = num(p, "gap", 25) / 100;
+  const bx = 0.5 * (1 - gap) * (stripes ? cell / 3 : cell * 0.6);
+  const by = 0.5 * (1 - gap) * cell;
+  return {
+    cell,
+    stripes,
+    centre: p.sample === "centre",
+    bx,
+    by,
+    radius: Math.min(bx, by),
+    gain: num(p, "brightness", 260) / 100,
+    focus: (num(p, "focus", 40) / 100) * cell * 0.3,
+    glowSigma: cell * 0.8,
+    glow: num(p, "glow", 45) / 100,
+    haze: num(p, "haze", 75) / 100,
+    tint: parseHex(String(p.tint ?? "#6a5cff")).map((v) => v / 255) as [number, number, number],
+  };
+}
+
+/** Share of a channel's light past full brightness that spills into the other two. */
+export const SPILL = 0.7;
+
+/** Inside-ness of a rounded box (half size bx × by, corner r) at offset (dx, dy) px: 1 inside, 0 outside, a 1 px soft edge. */
+function capsule(dx: number, dy: number, bx: number, by: number, r: number): number {
+  const qx = Math.abs(dx) - (bx - r);
+  const qy = Math.abs(dy) - (by - r);
+  const d = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+  return Math.min(1, Math.max(0, 0.5 - d));
+}
+
+export const subpixels: EffectDefinition = {
+  id: "subpixels",
+  name: "Subpixels",
+  category: "light",
+  summary:
+    "Rebuilds the picture from glowing red, green and blue screen subpixels, soft and hazy, as if your nose were pressed against a monitor.",
+  controls: [
+    { kind: "slider", id: "cell", label: "Pixel size", help: "Size of one screen pixel.", min: 4, max: 64, step: 1, default: 12, unit: "px" },
+    {
+      kind: "select",
+      id: "layout",
+      label: "Layout",
+      options: [
+        { value: "stripes", label: "RGB stripes" },
+        { value: "led", label: "LED" },
+      ],
+      default: "stripes",
+    },
+    {
+      kind: "select",
+      id: "sample",
+      label: "Colour from",
+      help: "Centre keeps a dither underneath crisp: each screen pixel is fully on or off.",
+      options: [
+        { value: "average", label: "Average" },
+        { value: "centre", label: "Centre" },
+      ],
+      default: "average",
+    },
+    { kind: "slider", id: "gap", label: "Gap", min: 0, max: 60, step: 1, default: 25, unit: "%" },
+    { kind: "slider", id: "focus", label: "Defocus", min: 0, max: 100, step: 1, default: 40, unit: "%" },
+    { kind: "slider", id: "brightness", label: "Brightness", min: 50, max: 400, step: 5, default: 260, unit: "%" },
+    { kind: "slider", id: "glow", label: "Glow", min: 0, max: 200, step: 5, default: 45, unit: "%" },
+    { kind: "slider", id: "haze", label: "Haze", help: "How much the glow takes on the tint colour.", min: 0, max: 100, step: 1, default: 75, unit: "%" },
+    { kind: "color", id: "tint", label: "Haze colour", default: "#6a5cff" },
+  ],
+  run: (input, p) => {
+    const { width: w, height: h } = input;
+    const s = subpixelSettings(p);
+    const cells = cellColours(input, s.cell, s.centre);
+    // 1. Bars: each subpixel lit by its channel of the cell colour.
+    const bars = new Float32Array(w * h * 3);
+    for (let y = 0; y < h; y++) {
+      const j = Math.floor(y / s.cell);
+      const dy = y + 0.5 - (j + 0.5) * s.cell;
+      for (let x = 0; x < w; x++) {
+        const i = Math.floor(x / s.cell);
+        const k = (j * cells.cols + i) * 3;
+        const o = (y * w + x) * 3;
+        if (s.stripes) {
+          const u = x + 0.5 - i * s.cell;
+          const c = Math.min(2, Math.floor((u * 3) / s.cell));
+          const m = capsule(u - ((c + 0.5) * s.cell) / 3, dy, s.bx, s.by, s.radius);
+          bars[o + c] = cells.rgb[k + c]! * m * s.gain;
+        } else {
+          const m = capsule(x + 0.5 - (i + 0.5) * s.cell, dy, s.bx, s.by, s.radius) * s.gain;
+          bars[o] = cells.rgb[k]! * m;
+          bars[o + 1] = cells.rgb[k + 1]! * m;
+          bars[o + 2] = cells.rgb[k + 2]! * m;
+        }
+      }
+    }
+    // 2. Defocus, 3. a wide glow from that.
+    const soft = gaussianBlur(bars, w, h, s.focus);
+    const glow = gaussianBlur(soft, w, h, s.glowSigma);
+    // 4. Glow tinted toward the haze colour by its own brightness, then light past
+    //    full brightness in one channel spills into the others (overexposed bars go pastel).
+    const out = new Float32Array(w * h * 3);
+    for (let q = 0; q < w * h; q++) {
+      const o = q * 3;
+      const gl = luma(glow[o]!, glow[o + 1]!, glow[o + 2]!);
+      let spill = 0;
+      const v = [0, 0, 0];
+      for (let c = 0; c < 3; c++) {
+        const g = glow[o + c]! + (gl * s.tint[c]! * 2 - glow[o + c]!) * s.haze;
+        v[c] = soft[o + c]! + g * s.glow;
+        spill += Math.max(0, v[c]! - 255);
+      }
+      for (let c = 0; c < 3; c++) out[o + c] = v[c]! + spill * SPILL;
+    }
+    return fromFloat(out, input);
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Glitch
 
@@ -438,6 +639,8 @@ export const EFFECTS: readonly EffectDefinition[] = [
   tint,
   bloom,
   vignette,
+  orbs,
+  subpixels,
   chromaticSplit,
   scanlines,
   rowShift,

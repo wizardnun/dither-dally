@@ -37,6 +37,52 @@ export function fieldDither(
   return out;
 }
 
+/**
+ * Returns `cache[key]`, making it first if needed. Keeps only the last two
+ * entries by default (a 4K rank field is ~33 MB); for rank fields that depend on size and settings but not on the
+ * image, so video frames and GPU uploads reuse them.
+ */
+export function cached<T>(cache: Map<string, T>, key: string, make: () => T, limit = 2): T {
+  let v = cache.get(key);
+  if (v === undefined) {
+    v = make();
+    if (cache.size >= limit) cache.delete(cache.keys().next().value!);
+    cache.set(key, v);
+  }
+  return v;
+}
+
+/**
+ * Turns raw field values into ranks spread evenly over [0, 1), keeping their
+ * order. Use it for fields whose values bunch up (sums of waves, distances),
+ * so that ink coverage still tracks tone. Equal values share a rank.
+ */
+export function equalize(values: Float32Array, bins = 4096): Float32Array {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const v of values) {
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  const out = new Float32Array(values.length);
+  if (!(hi > lo)) return out.fill(0.5);
+  const scale = (bins - 1) / (hi - lo);
+  const count = new Float64Array(bins);
+  for (const v of values) {
+    const b = Math.round((v - lo) * scale);
+    count[b] = count[b]! + 1;
+  }
+  // Each bin's rank is the middle of the share of pixels it covers.
+  const rank = new Float32Array(bins);
+  let below = 0;
+  for (let b = 0; b < bins; b++) {
+    rank[b] = Math.min(0.999999, (below + count[b]! / 2) / values.length);
+    below += count[b]!;
+  }
+  for (let i = 0; i < values.length; i++) out[i] = rank[Math.round((values[i]! - lo) * scale)]!;
+  return out;
+}
+
 /** Rec. 709 luma of an sRGB colour, 0–255. Used to find "ink" and "paper" colours. */
 export function luma([r, g, b]: RGB): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;

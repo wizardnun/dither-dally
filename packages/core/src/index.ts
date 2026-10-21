@@ -35,13 +35,15 @@ export {
   type MatchMetric,
 } from "./colorspace.ts";
 export { quantize } from "./basic.ts";
-export { KERNELS, diffuse, type Kernel, type Tap } from "./diffusion.ts";
-export { bayerMatrix, blueNoiseTexture, thresholdTile } from "./ordered.ts";
-export { darkest, fieldDither, lightest, luma } from "./field.ts";
+export { KERNELS, diffuse, gaussianKernel, type Kernel, type Tap } from "./diffusion.ts";
+export { bayerMatrix, blueNoiseTexture, curveFactor, thresholdTile } from "./ordered.ts";
+export { cached, darkest, equalize, fieldDither, lightest, luma } from "./field.ts";
+export { brightPeaks, moireRanks } from "./lines.ts";
+export { stippleRanks } from "./pattern.ts";
 export { circleCoverage, screenCoords, spotRank, type DotShape } from "./halftone.ts";
 export { inShape, type GridShape } from "./cells.ts";
 export { hilbertPoint } from "./riemersma.ts";
-export { EFFECTS, EFFECT_CATEGORY_LABELS, gaussianBlur, getEffect } from "./effects.ts";
+export { EFFECTS, EFFECT_CATEGORY_LABELS, SPILL, cellColours, gaussianBlur, getEffect, orbLayout, subpixelSettings } from "./effects.ts";
 export { extractPalette } from "./extract.ts";
 export {
   layerSeed,

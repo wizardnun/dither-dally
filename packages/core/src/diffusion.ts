@@ -115,7 +115,12 @@ export interface DiffuseOptions {
   color?: ColorSettings;
 }
 
-export function diffuse(input: PixelBuffer, palette: Palette, kernel: Kernel, opts: DiffuseOptions): PixelBuffer {
+export function diffuse(
+  input: PixelBuffer,
+  palette: Palette,
+  kernel: Pick<Kernel, "divisor" | "taps">,
+  opts: DiffuseOptions,
+): PixelBuffer {
   const { width: w, height: h, data: src } = input;
   const out = createBuffer(w, h);
   const dst = out.data;
@@ -201,3 +206,51 @@ export function diffusionAlgorithm(kernel: Kernel): AlgorithmDefinition {
       }),
   };
 }
+
+/**
+ * Taps for a Gaussian kernel: the forward half of a disc of radius ⌈2σ⌉
+ * (capped at 6), each weighted by a Gaussian of its distance.
+ */
+export function gaussianKernel(sigma: number): Pick<Kernel, "divisor" | "taps"> {
+  const r = Math.min(6, Math.max(1, Math.ceil(2 * sigma)));
+  const taps: Tap[] = [];
+  let divisor = 0;
+  for (let dy = 0; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (dy === 0 && dx <= 0) continue;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r * r) continue;
+      const weight = Math.exp(-d2 / (2 * sigma * sigma));
+      taps.push([dx, dy, weight]);
+      divisor += weight;
+    }
+  }
+  return { divisor, taps };
+}
+
+export const gaussian: AlgorithmDefinition = {
+  id: "gaussian",
+  name: "Gaussian",
+  family: "error-diffusion",
+  summary: "Error spreads over a soft round neighbourhood whose size you set, from crisp to cloudy grain.",
+  controls: [
+    {
+      kind: "slider",
+      id: "spread",
+      label: "Spread",
+      help: "Width of the neighbourhood the error is shared over. Small is crisp, large is soft and wormy.",
+      min: 0.5,
+      max: 3,
+      step: 0.1,
+      default: 1,
+    },
+    { kind: "toggle", id: "serpentine", label: "Serpentine scan", default: true },
+    { kind: "slider", id: "strength", label: "Error strength", min: 0, max: 200, step: 5, default: 100, unit: "%" },
+  ],
+  run: (input, palette, params, ctx) =>
+    diffuse(input, palette, gaussianKernel(Number(params.spread ?? 1)), {
+      serpentine: Boolean(params.serpentine ?? true),
+      strength: Number(params.strength ?? 100) / 100,
+      color: ctx.color,
+    }),
+};

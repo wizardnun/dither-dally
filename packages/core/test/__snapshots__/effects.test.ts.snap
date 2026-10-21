@@ -12,11 +12,15 @@ exports[`grain > matches the golden output 1`] = `"9b8dda81ca7c0ed4"`;
 
 exports[`invert > matches the golden output 1`] = `"a07b9fe60f12a4a5"`;
 
+exports[`orbs > matches the golden output 1`] = `"1275d8d0b6d4df6f"`;
+
 exports[`row-shift > matches the golden output 1`] = `"9d047fc639cafa1a"`;
 
 exports[`scanlines > matches the golden output 1`] = `"a0aaddc4bc45e1b5"`;
 
 exports[`sharpen > matches the golden output 1`] = `"e889c1f7e212a5fb"`;
+
+exports[`subpixels > matches the golden output 1`] = `"f9d363e4cdb54d68"`;
 
 exports[`tint > matches the golden output 1`] = `"de49513532b7fcf8"`;
 

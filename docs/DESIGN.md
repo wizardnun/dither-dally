@@ -1,6 +1,6 @@
 # Dither Dally — Design
 
-Status: Phase 4 complete · Last updated: 2026-10-19
+Status: Phase 5 in progress · Last updated: 2026-10-21
 
 ## 1. What we're building
 
@@ -231,6 +231,16 @@ standard graphics method, our parameters · **original** = designed by us.
 | 4 ✓ | pattern | Contours (topographic iso-lines of smoothed brightness) | original |
 | 4 ✓ | glitch | Streak (error carried along rows or columns only), Slip (Floyd–Steinberg whose error is handed down with random sideways jolts) | original |
 | 4+ ✓ | text | ASCII (tone or shape matched), Braille | technique |
+| 5 ✓ | error diffusion | Gaussian (kernel generated from a spread σ: forward half of a disc of radius ⌈2σ⌉) | technique |
+| 5 ✓ | lines | Moiré (two mismatched, twisted gratings; ranks equalised) | technique |
+| 5 ✓ | pattern | Stipple (seeded jittered dots, ranks equalised), Checker (two-rank ordered mix), Edges (Sobel outline) | technique |
+| 5 ✓ | glitch | Ripple (Streak whose carry rises and falls in bands, with optional bleed to the next row) | original |
+| 5 ✓ | error diffusion | Whirl (diffusion along a spiral from a centre, Floyd–Steinberg weights in polar terms, twisted) | original |
+| 5 ✓ | lines | Echoes (ring screen around the brightest spots) | original |
+| 5 ✓ | polygon | Pentagons (Cairo tiling: Voronoi cells of the snub square tiling's corners) | technique |
+| 5 ✓ | ordered | Curvature control on Bayer and Blue noise (CRT bulge) | original |
+| 5 ✓ | effect | Glow orbs (seeded soft glows, screened) | original |
+| 5 ✓ | effect | Subpixels (the image rebuilt from RGB stripe or LED capsules, defocused, with haze and overexposure) | original |
 | later | error diffusion | Ostromoukhov (variable coefficients) — needs the paper's 256-entry table from the primary source | published |
 
 ## 5. Performance plan
@@ -300,6 +310,77 @@ See `CONTRIBUTING.md` for the contributor-facing version.
 - **Phase 4 ✓** Seven original styles in two new families (Line screens,
   Glitch) plus Contours; video: open, scrub, play and export MP4 with the
   layer stack applied to every frame and the audio kept.
+
+- **Phase 5 (started 2026-10-21)** Gaps from the field-notes catalog, built
+  clean-room: Gaussian, Moiré, Stipple, Checker, Edges, Ripple; then Whirl,
+  Echoes, Pentagons, Curvature (Bayer, Blue noise) and the Glow orbs effect
+  (41 styles, 12 effects); then the Subpixels effect (13 effects).
+
+### Phase 5 decisions
+
+- **Equalised ranks.** Fields whose raw values bunch up (a sum of two waves,
+  distance to scattered dots) don't track tone if used as ranks directly.
+  `equalize` maps any field to ranks spread evenly over [0, 1) through its
+  histogram (4,096 bins), so coverage matches tone exactly. Moiré and Stipple
+  use it; ties share a rank, so a stipple dot switches on whole.
+- **Stipple ordering.** Inside a dot the raw rank is the dot's seeded turn;
+  between dots it is 1 + distance to the nearest dot, so in the darkest tones
+  the gaps close from the dots outward instead of breaking into noise.
+- **Checker** is a field dither with only two ranks (¼, ¾): near a palette
+  colour stays solid, halfway between two becomes a checker of both.
+- **Ripple** with no depth and no bleed is exactly Streak at full carry
+  (pinned by a test).
+- Timings at 1600×900 (Node, CGA palette): Checker 22 ms, Ripple 27 ms,
+  Moiré 83 ms, Gaussian 132 ms, Edges 159 ms, Stipple 213 ms.
+- **GPU by default for parallel styles.** New styles get a WebGPU path when
+  their pixels are independent and it pays off. Checker is a new rank mode
+  in the field shader. Moiré and Stipple don't depend on the image, so core
+  builds their rank fields once (`moireRanks`, `stippleRanks`, cached with
+  the last two sizes/settings kept, ~33 MB each at 4K) and the GPU reads them
+  per pixel, as for white noise; the CPU path uses the same cache, so video
+  frames after the first skip the rebuild. The first frame after a settings
+  change still builds the field on the CPU (Stipple ~1.2 s at 4K, which
+  `equalize` makes hard to move to the GPU). Edges reuses the effects
+  shader's three-box blur on brightness, then a Sobel pass. Gaussian and
+  Ripple are serial diffusion and stay on the CPU.
+- gpu-check at 3840×2160, Chrome on Apple Metal, rank fields cached: Checker
+  143 → 15 ms, Moiré 384 → 20 ms, Stipple 300 → 18–21 ms, Edges 832 → 45 ms;
+  all within the dither tolerance (Edges identical).
+
+- **Whirl** sorts pixels by radius + angle/2π (an Archimedean spiral one
+  pixel per turn; the order is cached per size and centre) and diffuses
+  along it: 7/16 to the next pixel round the ring, 3, 5, 1 to the ring
+  outside, which twist shifts sideways by up to 1.5 px. Targets the spiral
+  has already passed (rounding onto the grid makes this common at some
+  angles) give their weight to the others; the first version dropped it,
+  which left dark spokes and lost tone. A test pins tone at three twists.
+  CPU only (serial).
+- **Echoes** finds peaks on a copy shrunk to ~8 px per separation, blurred,
+  local maxima kept greedily brightest first; the ring screen around them
+  runs on the GPU with the peaks as parameters.
+- **Pentagons**: the snub square tiling's corners each have five
+  equidistant neighbours, so their Voronoi cells are the congruent Cairo
+  pentagons (a test checks every inner tile's area is within 12% of the
+  mean). CPU, like the other cell styles (per-cell averages).
+- **Curvature** reads the tile at centre + d·(1 + k·|d|²); at 0 the code
+  path and the golden images are unchanged. Old presets load with 0.
+- **Glow orbs** is an effect, not a style: placed before any dither it
+  gives the "orb" looks with every style. Positions follow the layer seed.
+- **Subpixels** recreates a phone photo of a screen taken far too close.
+  Square cells (average or centre colour) become screen pixels: three
+  rounded capsules lit by R, G and B (or one full-colour LED capsule),
+  wider gaps between rows than columns. Then a defocus blur
+  (σ = defocus × cell × 0.3), a glow blur (σ = 0.8 cell) tinted toward a
+  blue-violet haze by its own brightness, and overexposure: 70% of the
+  light past 255 in any channel is added to all three, so hot bars go
+  pastel instead of clipping. Defaults were tuned against reference photos
+  (brightness 260%, defocus 40%, glow 45%, haze 75%). It is an effect so
+  it works on any style; "centre" sampling keeps a dither underneath as
+  crisp on/off LEDs. GPU: cell colours from the CPU, then a bars pass, the
+  shared box blurs and a final pass; 4K 1685 → 111 ms, within ±1.
+- gpu-check at 3840×2160: curved Bayer 470 → 17 ms, curved blue noise
+  485 → 16 ms, Echoes 563 → 82 ms (peaks on the CPU), Glow orbs
+  766 → 16 ms; all within tolerance.
 
 ### Phase 4 decisions
 
@@ -422,9 +503,11 @@ the 216-colour palette made every style ~500 ms at 1600×900.
   1600×900: Floyd–Steinberg 530 → 126 ms, Bayer 523 → 94 ms.
 - **WebGPU (shipped):** `apps/web/src/gpu.ts` runs the layers whose
   pixels are independent: Bayer, blue noise, white noise, Halftone, Wave
-  lines, Rings, Spiral and Crosshatch (one compute shader: the style's rank
+  lines, Rings, Spiral, Crosshatch, Checker, Echoes, Moiré and Stipple,
+  with Bayer and blue noise also when curved (one compute shader: the style's rank
   in WGSL, then the nearest palette colour), and Blur, Sharpen and Bloom
-  (the same three-box Gaussian as the CPU). Core's `runPipelineAsync` offers
+  (the same three-box Gaussian as the CPU), and Edges (that blur on
+  brightness, then Sobel), Glow orbs and Subpixels. Core's `runPipelineAsync` offers
   each layer to it; anything it declines (error diffusion, the other
   styles, OKLab matching, images too big for a GPU buffer) runs on the CPU,
   and steady dots works the same either way. The render worker handles one

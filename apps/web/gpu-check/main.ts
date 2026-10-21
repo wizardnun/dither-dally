@@ -43,6 +43,8 @@ const withParams = (layer: Layer, params: Record<string, string | number | boole
 
 const CASES: { label: string; layer: Layer }[] = [
   { label: "Bayer 8×8", layer: withParams(ditherLayer("bayer"), { size: "8" }) },
+  { label: "Bayer curved", layer: withParams(ditherLayer("bayer"), { size: "4", curve: 70 }) },
+  { label: "Blue noise curved", layer: withParams(ditherLayer("blue-noise"), { curve: 100 }) },
   { label: "Blue noise 64", layer: ditherLayer("blue-noise") },
   { label: "White noise", layer: ditherLayer("white-noise") },
   ...["round", "diamond", "square", "line"].map((shape) => ({ label: `Halftone ${shape}`, layer: withParams(ditherLayer("halftone"), { shape, angle: 30 }) })),
@@ -50,9 +52,18 @@ const CASES: { label: string; layer: Layer }[] = [
   { label: "Rings", layer: withParams(ditherLayer("rings"), { cx: 30 }) },
   { label: "Spiral ×3 ccw", layer: withParams(ditherLayer("spiral"), { arms: 3, turn: "ccw" }) },
   { label: "Crosshatch", layer: ditherLayer("crosshatch") },
+  { label: "Checker 3px", layer: withParams(ditherLayer("checker"), { size: 3 }) },
+  { label: "Moiré", layer: ditherLayer("moire") },
+  { label: "Stipple", layer: ditherLayer("stipple") },
+  { label: "Edges", layer: ditherLayer("edges") },
+  { label: "Echoes", layer: ditherLayer("echoes") },
+  { label: "Edges fill r0", layer: withParams(ditherLayer("edges"), { fill: true, smoothing: 0, invert: true }) },
   { label: "Blur r6", layer: withParams(effectLayer("blur"), { radius: 6 }) },
   { label: "Sharpen", layer: effectLayer("sharpen") },
   { label: "Bloom", layer: withParams(effectLayer("bloom"), { threshold: 120 }) },
+  { label: "Subpixels", layer: effectLayer("subpixels") },
+  { label: "Subpixels LED", layer: withParams(effectLayer("subpixels"), { layout: "led", sample: "centre", cell: 9, focus: 0 }) },
+  { label: "Glow orbs", layer: withParams(effectLayer("orbs"), { count: 12, color: "#ffcc88" }) },
 ];
 const PALETTES = ["mono", "ega-16", "web-216"];
 
