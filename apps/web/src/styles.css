@@ -370,7 +370,8 @@ canvas.overlay {
   margin-left: 2px;
   border-left: 0.5px solid var(--separator);
   color: var(--secondary);
-  min-width: 72px;
+  /* Wide enough for "Rendering…" and "999 ms/frame", so the box never resizes as the text changes. */
+  min-width: 104px;
 }
 
 .panel {

@@ -241,7 +241,8 @@ export function Viewer({ original, result, pixelSize, mode, insets, status }: Pr
         <button type="button" className="hud-btn" aria-label="Zoom in" title="Zoom in (Ctrl +)" onClick={zoomIn}>
           <PlusIcon size={14} />
         </button>
-        {status && <span className="hud-status">{status}</span>}
+        {/* Always present (even empty) so the box keeps one width. */}
+        <span className="hud-status">{status}</span>
       </div>
     </div>
   );

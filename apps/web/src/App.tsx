@@ -37,6 +37,7 @@ import { downloadPreset, hashForPreset, initialPreset, noticeFor, presetFromFile
 import { Toolbar } from "./Toolbar.tsx";
 import { createRenderWorker, renderOnce, useRender } from "./useDither.ts";
 import { useHistory } from "./useHistory.ts";
+import { useStatus } from "./useStatus.ts";
 import { useThumbnails } from "./useThumbnails.ts";
 import { formatTime } from "./time.ts";
 import type { VideoSession } from "./video.ts";
@@ -112,6 +113,7 @@ export function App() {
   const thumbSource = useMemo(() => thumbnailData(original, 168, 112), [original]);
   const result = useRender({ source, layers: renderLayers, palette, seed: doc.seed, color: doc.color });
   const thumbnails = useThumbnails(thumbSource, doc.layers, palette, doc.seed, doc.color);
+  const status = useStatus(result, playing, previewStyle && getAlgorithm(previewStyle).name);
 
   function say(text: string, error = false) {
     setNotice({ text, error, id: Date.now() });
@@ -432,13 +434,6 @@ export function App() {
     right: galleryOpen && wide ? GALLERY_SPACE : inspectorSpace,
   };
   const effects = doc.layers.filter((l) => l.kind === "effect" && l.enabled).length;
-  const status = previewStyle
-    ? `Preview: ${getAlgorithm(previewStyle).name}`
-    : result.busy
-      ? "Rendering…"
-      : result.ms !== null
-        ? `${result.ms.toFixed(0)} ms`
-        : "";
 
   return (
     <div
