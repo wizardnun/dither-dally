@@ -230,8 +230,8 @@ standard graphics method, our parameters · **original** = designed by us.
 | 4 ✓ | lines | Wave lines, Rings, Spiral (line screens: rank = distance from the line centre, so coverage tracks tone); Engraving (a line screen displaced by the smoothed brightness) | original |
 | 4 ✓ | pattern | Contours (topographic iso-lines of smoothed brightness) | original |
 | 4 ✓ | glitch | Streak (error carried along rows or columns only), Slip (Floyd–Steinberg whose error is handed down with random sideways jolts) | original |
+| 4+ ✓ | text | ASCII (tone or shape matched), Braille | technique |
 | later | error diffusion | Ostromoukhov (variable coefficients) — needs the paper's 256-entry table from the primary source | published |
-| 4 | original | Line-diffusion glitch family, wave and contour fields | original |
 
 ## 5. Performance plan
 
@@ -288,7 +288,8 @@ See `CONTRIBUTING.md` for the contributor-facing version.
 - **Phase 0 ✓** Core, classic diffusion, Bayer, white noise, worker-based app.
 - **Phase 1 ✓** Colour settings (linear light, OKLab), blue noise, preset
   links and files, PWA, GitHub Pages workflow (`.github/workflows/pages.yml`).
-  Not yet deployed: the repository isn't on GitHub yet.
+  The repository is on GitHub, but Pages isn't enabled yet, so the deploy
+  job fails at its last step.
 - **Phase 2 ✓** Halftone, CMYK halftone, crosshatch, shape grid, Voronoi,
   hexagons, triangles, Riemersma (22 styles in 6 families). Style gallery.
   Deferred: Ostromoukhov (needs the primary-source coefficient table) and
