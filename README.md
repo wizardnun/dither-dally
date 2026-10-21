@@ -3,6 +3,8 @@
 An open-source dithering studio for the browser. Drop in an image, pick an
 algorithm and a palette, tune it live, export.
 
+**Try it:** <https://wizardnun.github.io/dither-dally/>
+
 > Early development: the four planned phases are done. See
 > [docs/DESIGN.md](docs/DESIGN.md) for the design and what's next.
 

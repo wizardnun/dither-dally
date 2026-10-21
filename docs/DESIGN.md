@@ -288,8 +288,8 @@ See `CONTRIBUTING.md` for the contributor-facing version.
 - **Phase 0 ✓** Core, classic diffusion, Bayer, white noise, worker-based app.
 - **Phase 1 ✓** Colour settings (linear light, OKLab), blue noise, preset
   links and files, PWA, GitHub Pages workflow (`.github/workflows/pages.yml`).
-  The repository is on GitHub, but Pages isn't enabled yet, so the deploy
-  job fails at its last step.
+  Live at <https://wizardnun.github.io/dither-dally/>, deployed on every push
+  to `main`.
 - **Phase 2 ✓** Halftone, CMYK halftone, crosshatch, shape grid, Voronoi,
   hexagons, triangles, Riemersma (22 styles in 6 families). Style gallery.
   Deferred: Ostromoukhov (needs the primary-source coefficient table) and
