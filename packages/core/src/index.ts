@@ -43,7 +43,7 @@ export { inShape, type GridShape } from "./cells.ts";
 export { hilbertPoint } from "./riemersma.ts";
 export { EFFECTS, EFFECT_CATEGORY_LABELS, gaussianBlur, getEffect } from "./effects.ts";
 export { extractPalette } from "./extract.ts";
-export { runPipeline, runUntilDither, type PipelineSettings } from "./pipeline.ts";
+export { runPipeline, runUntilDither, scaleLayers, type PipelineSettings } from "./pipeline.ts";
 export { CELL_H, CELL_W, FONT_CHARS, coverage, glyph, type Glyph } from "./font.ts";
 export {
   CHARSETS,
@@ -82,4 +82,5 @@ export {
 } from "./preset.ts";
 export { mulberry32 } from "./random.ts";
 export { PALETTES, getPalette, type NamedPalette } from "./palettes.ts";
+export { PaletteFileError, parsePaletteFile, toGpl, type ParsedPalette } from "./paletteFile.ts";
 export { ALGORITHMS, FAMILY_LABELS, TONAL_FAMILIES, defaultParams, getAlgorithm } from "./registry.ts";

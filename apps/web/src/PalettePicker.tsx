@@ -7,9 +7,13 @@ interface Props {
   onChange: (ref: PaletteRef) => void;
   /** Builds a palette from the current image with this many colours. */
   onExtract: (count: number) => void;
+  /** Opens a palette file (.gpl, .pal, .hex, Paint.NET .txt). */
+  onImport: () => void;
+  /** Saves the current palette as a .gpl file. */
+  onSave: () => void;
 }
 
-export function PalettePicker({ value, onChange, onExtract }: Props) {
+export function PalettePicker({ value, onChange, onExtract, onImport, onSave }: Props) {
   const [count, setCount] = useState(6);
   const custom = typeof value === "string" ? null : value;
   return (
@@ -52,6 +56,15 @@ export function PalettePicker({ value, onChange, onExtract }: Props) {
           Make palette from image
         </button>
       </div>
+      <div className="button-row">
+        <button type="button" className="push" onClick={onImport} title="GIMP .gpl, JASC .pal, .hex (Lospec) or Paint.NET .txt">
+          Import palette…
+        </button>
+        <button type="button" className="push" onClick={onSave} title="Save these colours as a GIMP palette (.gpl)">
+          Save as .gpl
+        </button>
+      </div>
+      <p className="hint">Import .gpl, .pal, .hex or Paint.NET files, or drop one onto the window.</p>
     </div>
   );
 }

@@ -27,6 +27,10 @@ interface Props {
   onOpen: () => void;
   onShare: () => void;
   onExport: () => void;
+  /** Size of a full-size export, or null when the preview already is full size. */
+  fullSize: { width: number; height: number } | null;
+  exportingFull: boolean;
+  onExportFull: () => void;
   onBatch: () => void;
   onExportVideo: () => void;
   isVideo: boolean;
@@ -77,6 +81,9 @@ export function Toolbar(p: Props) {
         </button>
         <ExportMenu
           onExport={p.onExport}
+          fullSize={p.fullSize}
+          exportingFull={p.exportingFull}
+          onExportFull={p.onExportFull}
           onBatch={p.onBatch}
           onExportVideo={p.onExportVideo}
           onTextAction={p.onTextAction}
@@ -111,6 +118,9 @@ export function Toolbar(p: Props) {
 
 interface ExportMenuProps {
   onExport: () => void;
+  fullSize: { width: number; height: number } | null;
+  exportingFull: boolean;
+  onExportFull: () => void;
   onBatch: () => void;
   onExportVideo: () => void;
   onTextAction?: (action: "copy" | "txt" | "html") => void;
@@ -118,7 +128,8 @@ interface ExportMenuProps {
   canExport: boolean;
 }
 
-function ExportMenu({ onExport, onBatch, onExportVideo, onTextAction, isVideo, canExport }: ExportMenuProps) {
+function ExportMenu(p: ExportMenuProps) {
+  const { onExport, fullSize, exportingFull, onExportFull, onBatch, onExportVideo, onTextAction, isVideo, canExport } = p;
   /** Where to show the menu (below the button, right-aligned to it), or null when closed. */
   const [at, setAt] = useState<{ top: number; right: number } | null>(null);
   const open = at !== null;
@@ -207,6 +218,23 @@ function ExportMenu({ onExport, onBatch, onExportVideo, onTextAction, isVideo, c
               <span className="menu-name">{isVideo ? "Export frame as PNG" : "Export PNG"}</span>
               <span className="menu-desc">{isVideo ? "Save the frame you're looking at." : "Save this image as you see it."} Ctrl E</span>
             </button>
+            {fullSize && (
+              <button
+                type="button"
+                role="menuitem"
+                className="menu-item"
+                disabled={!canExport || exportingFull}
+                onClick={() => {
+                  close();
+                  onExportFull();
+                }}
+              >
+                <span className="menu-name">
+                  {exportingFull ? "Rendering full size…" : `Export full size (${fullSize.width.toLocaleString()} × ${fullSize.height.toLocaleString()})`}
+                </span>
+                <span className="menu-desc">Your image's own resolution. Finer grain; patterns and effects keep their proportions.</span>
+              </button>
+            )}
             <button
               type="button"
               role="menuitem"

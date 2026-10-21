@@ -1,11 +1,23 @@
 /** Longest side of the working image. Keeps previews fast on large photos. */
 export const MAX_SIDE = 1600;
 
-/** Draws `source` into a canvas, downscaled so the result is (w / pixelSize) × (h / pixelSize). */
-export function toImageData(source: CanvasImageSource & { width: number; height: number }, pixelSize: number): ImageData {
-  const fit = Math.min(1, MAX_SIDE / Math.max(source.width, source.height));
-  const w = Math.max(1, Math.round((source.width * fit) / pixelSize));
-  const h = Math.max(1, Math.round((source.height * fit) / pixelSize));
+/** Longest side of a full-size export; bigger photos are scaled down to this (about 50 MP at 3:2). */
+export const FULL_MAX_SIDE = 8192;
+
+type Sized = { width: number; height: number };
+
+/** Size of the image the pipeline works on: `source` fitted to `maxSide`, then divided by the pixel size. */
+export function workingSize(source: Sized, pixelSize: number, maxSide = MAX_SIDE): Sized {
+  const fit = Math.min(1, maxSide / Math.max(source.width, source.height));
+  return {
+    width: Math.max(1, Math.round((source.width * fit) / pixelSize)),
+    height: Math.max(1, Math.round((source.height * fit) / pixelSize)),
+  };
+}
+
+/** Draws `source` into a canvas at its working size (see workingSize). */
+export function toImageData(source: CanvasImageSource & Sized, pixelSize: number, maxSide = MAX_SIDE): ImageData {
+  const { width: w, height: h } = workingSize(source, pixelSize, maxSide);
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;

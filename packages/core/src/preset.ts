@@ -8,7 +8,7 @@ import type { Control, DitherLayer, EffectLayer, Layer, Palette, Params } from "
 export const PRESET_VERSION = 2;
 export const PIXEL_SIZE_RANGE = { min: 1, max: 8 } as const;
 export const MAX_LAYERS = 32;
-export const CUSTOM_PALETTE_SIZE = { min: 2, max: 64 } as const;
+export const CUSTOM_PALETTE_SIZE = { min: 2, max: 256 } as const;
 
 /** A palette made by the user (e.g. extracted from an image), stored in the preset itself. */
 export interface CustomPalette {

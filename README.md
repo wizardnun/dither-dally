@@ -17,9 +17,13 @@ algorithm and a palette, tune it live, export.
   it (to treat the result), in the inspector's Effects tab: adjust,
   blur, sharpen, grain, tint, bloom, vignette, chromatic split, scanlines and
   more. Full undo and redo.
-- **Your own palettes:** pick from built-in palettes or make one from your
-  image in a click.
-- **Batch export:** apply one look to a whole folder of images.
+- **Your own palettes:** pick from built-in palettes (including PICO-8 and
+  web-safe), make one from your image in a click, or import a .gpl, .pal,
+  .hex or Paint.NET palette file. Save any palette as .gpl.
+- **Full-size export:** save at your image's own resolution (up to 8,192 px);
+  patterns and effects keep their proportions.
+- **Batch export:** apply one look to a whole folder of images, at preview
+  size or full size.
 - **Private:** your images never leave your device. Everything runs in the browser.
 - **Shareable:** the link always holds your current settings. Send it and
   others get the exact look (on their own image). Save and load preset files too.

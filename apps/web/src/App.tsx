@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import {
+  PaletteFileError,
   PresetError,
   customPalette,
   defaultParams,
@@ -8,12 +9,16 @@ import {
   getAlgorithm,
   getDitherLayer,
   getEffect,
+  getPalette,
   insertLayerAfter,
   moveLayer,
+  parsePaletteFile,
   removeLayer,
   resolvePalette,
   runUntilDither,
+  scaleLayers,
   textArtFor,
+  toGpl,
   toHtml,
   toPlainText,
   type ColorSettings,
@@ -25,12 +30,12 @@ import {
 } from "@dither-dally/core";
 import { BatchSheet } from "./BatchSheet.tsx";
 import { Gallery } from "./Gallery.tsx";
-import { exportPng, loadImageFile, sampleImage, thumbnailData, toImageData } from "./image.ts";
+import { FULL_MAX_SIDE, exportPng, loadImageFile, sampleImage, thumbnailData, toImageData, workingSize } from "./image.ts";
 import type { Side } from "./EffectList.tsx";
 import { Inspector, type TextAction } from "./Inspector.tsx";
 import { downloadPreset, hashForPreset, initialPreset, noticeFor, presetFromFile, presetFromHash } from "./presetLink.ts";
 import { Toolbar } from "./Toolbar.tsx";
-import { useRender } from "./useDither.ts";
+import { createRenderWorker, renderOnce, useRender } from "./useDither.ts";
 import { useHistory } from "./useHistory.ts";
 import { useThumbnails } from "./useThumbnails.ts";
 import { formatTime } from "./time.ts";
@@ -43,6 +48,8 @@ const loadVideo = () => import("./video.ts");
 import { Viewer, type CompareMode } from "./Viewer.tsx";
 
 const VIDEO_FILE = /\.(mp4|m4v|mov|webm|mkv|ogv)$/i;
+/** Palette files that can be dropped onto the window (Paint.NET .txt only via Import). */
+const PALETTE_FILE = /\.(gpl|pal|hex)$/i;
 const isVideoFile = (f: File) => f.type.startsWith("video/") || VIDEO_FILE.test(f.name);
 
 type Source = CanvasImageSource & { width: number; height: number };
@@ -80,6 +87,8 @@ export function App() {
   const imageInput = useRef<HTMLInputElement>(null);
   const presetInput = useRef<HTMLInputElement>(null);
   const batchInput = useRef<HTMLInputElement>(null);
+  const paletteInput = useRef<HTMLInputElement>(null);
+  const [exportingFull, setExportingFull] = useState(false);
   /** Settings each style had when you last left it, so switching back restores them. */
   const styleMemory = useRef<Record<string, Params>>({});
 
@@ -95,6 +104,11 @@ export function App() {
     [doc.layers, previewStyle],
   );
   const source = useMemo(() => toImageData(original, doc.pixelSize), [original, doc.pixelSize]);
+  /** Size of a full-size export, or null when the preview already is full size. */
+  const fullSize = useMemo(() => {
+    const s = workingSize(original, doc.pixelSize, FULL_MAX_SIDE);
+    return s.width > source.width ? { width: s.width * doc.pixelSize, height: s.height * doc.pixelSize } : null;
+  }, [original, doc.pixelSize, source.width]);
   const thumbSource = useMemo(() => thumbnailData(original, 168, 112), [original]);
   const result = useRender({ source, layers: renderLayers, palette, seed: doc.seed, color: doc.color });
   const thumbnails = useThumbnails(thumbSource, doc.layers, palette, doc.seed, doc.color);
@@ -270,6 +284,27 @@ export function App() {
     }
   }
 
+  async function openPaletteFile(file: File | undefined) {
+    if (!file) return;
+    try {
+      const { name, colors, warnings } = parsePaletteFile(await file.text(), file.name);
+      update((d) => ({ ...d, palette: customPalette(name, colors) }));
+      say([`Loaded "${name}" (${colors.length} colours). It's saved with the preset.`, ...warnings].join(" "));
+    } catch (err) {
+      say(err instanceof PaletteFileError ? err.message : `Couldn't read "${file.name}".`, true);
+    }
+  }
+
+  function savePalette() {
+    const name = typeof doc.palette === "string" ? getPalette(doc.palette).name : doc.palette.name;
+    const url = URL.createObjectURL(new Blob([toGpl(name, palette)], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name.replace(/[^\w.-]+/g, "-")}.gpl`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -310,6 +345,30 @@ export function App() {
 
   function exportImage() {
     if (result.image && !previewStyle) exportPng(result.image, doc.pixelSize, `${fileName}-${dither.algorithm}.png`);
+  }
+
+  /**
+   * Renders the image at its own resolution (up to FULL_MAX_SIDE) in a separate
+   * worker. Distance settings scale with the image so patterns and effects keep
+   * their proportions; the dither grain is finer than in the preview.
+   */
+  async function exportFullSize() {
+    if (!fullSize || exportingFull) return;
+    const full = toImageData(original, doc.pixelSize, FULL_MAX_SIDE);
+    const layers = scaleLayers(doc.layers, full.width / source.width);
+    setExportingFull(true);
+    say(`Rendering ${fullSize.width} × ${fullSize.height}…`);
+    const worker = createRenderWorker();
+    try {
+      const image = await renderOnce(worker, { source: full, layers, palette, seed: doc.seed, color: doc.color });
+      exportPng(image, doc.pixelSize, `${fileName}-${dither.algorithm}-full.png`);
+      say(`Saved ${fullSize.width} × ${fullSize.height} PNG.`);
+    } catch (err) {
+      say(`Couldn't render at full size${err instanceof Error ? `: ${err.message}` : "."} Try a larger pixel size.`, true);
+    } finally {
+      worker.terminate();
+      setExportingFull(false);
+    }
   }
 
   // ----- keyboard -----
@@ -399,6 +458,7 @@ export function App() {
         setDragging(false);
         const file = e.dataTransfer.files[0];
         if (file && (file.type === "application/json" || file.name.endsWith(".json"))) void openPresetFile(file);
+        else if (file && PALETTE_FILE.test(file.name)) void openPaletteFile(file);
         else void openFile(file);
       }}
     >
@@ -414,6 +474,9 @@ export function App() {
         onOpen={() => imageInput.current?.click()}
         onShare={() => void copyLink()}
         onExport={exportImage}
+        fullSize={fullSize}
+        exportingFull={exportingFull}
+        onExportFull={() => void exportFullSize()}
         onBatch={() => batchInput.current?.click()}
         onExportVideo={() => {
           stopPlayback();
@@ -505,6 +568,8 @@ export function App() {
               palette={doc.palette}
               onPalette={(ref: PaletteRef) => update((d) => ({ ...d, palette: ref }))}
               onExtract={extract}
+              onImportPalette={() => paletteInput.current?.click()}
+              onSavePalette={savePalette}
               color={doc.color}
               onColor={(c: ColorSettings) => update((d) => ({ ...d, color: c }))}
               pixelSize={doc.pixelSize}
@@ -533,7 +598,7 @@ export function App() {
 
         {dragging && (
           <div className="drop-overlay" aria-hidden="true">
-            <div className="drop-card">Drop an image, a video or a preset</div>
+            <div className="drop-card">Drop an image, a video, a preset or a palette</div>
           </div>
         )}
 
@@ -556,6 +621,13 @@ export function App() {
         accept="image/*,video/*"
         hidden
         onChange={(e) => (void openFile(e.target.files?.[0]), (e.target.value = ""))}
+      />
+      <input
+        ref={paletteInput}
+        type="file"
+        accept=".gpl,.pal,.hex,.txt"
+        hidden
+        onChange={(e) => (void openPaletteFile(e.target.files?.[0]), (e.target.value = ""))}
       />
       <input
         ref={presetInput}

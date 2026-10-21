@@ -1563,6 +1563,14 @@ canvas.overlay {
   font-size: 13px;
 }
 
+.sheet .row-ctl {
+  align-items: center;
+}
+
+.sheet .segmented {
+  justify-self: start;
+}
+
 .sheet-buttons {
   display: flex;
   justify-content: flex-end;

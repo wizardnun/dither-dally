@@ -363,6 +363,31 @@ A **Text** family turns images into real characters (`text.ts`, `font.ts`):
   picture. When a setting goes below that, the inspector says so with the
   exact limit; the exported text is unaffected.
 
+### Full-size export and palette files (after the UI pass)
+
+- **Full size = the image's own resolution**, up to 8,192 px on the long
+  side (about 50 MP at 3:2; diffusion buffers stay around 300 MB). Pixel
+  size keeps its meaning in output pixels, so the dither grain is finer
+  than in the preview: that is the point of a full-size export.
+- **Proportions are kept by scaling distances.** `scaleLayers` multiplies
+  every slider whose unit is `"px"` (cell sizes, line spacing, radii,
+  glitch distances) by full width ÷ working width; whole-pixel settings are
+  rounded and stay ≥ 1 when above zero. Halftones, line screens, cells and
+  effects therefore look the same, just smoother. Anything new that is
+  measured in pixels must use `unit: "px"` for this to keep working.
+- Full-size export runs in its own worker so the preview stays live. It is
+  in the Export menu only when the image is larger than the preview, and
+  batch export offers "As previewed" or "Full size". Video export stays at
+  preview size.
+- **Palette files.** Import reads GIMP/Inkscape/Krita `.gpl`, JASC `.pal`,
+  Lospec-style `.hex` lists and Paint.NET `.txt`, detected from the
+  contents; duplicates are dropped. Imported palettes become custom
+  palettes saved in the preset. Custom palettes now allow up to 256 colours
+  (was 64), so older links still load. Any palette can be saved as `.gpl`.
+- **New built-ins:** PICO-8 (Lexaloffle releases the palette under CC0; the
+  PICO-8 application itself is proprietary and not used) and the 216
+  web-safe colours, generated rather than listed.
+
 ### Testing video
 
 There is no unit test for the video path (it needs a browser with
@@ -374,11 +399,9 @@ resolution videos, variable-frame-rate phone footage.
 
 ### Phase 3 decisions
 
-- **Export is WYSIWYG.** Export and batch export render at the same working
-  resolution as the preview (long side ≤ 1,600 px, then scaled by pixel
-  size). Effect sizes are in working pixels, so rendering at another
-  resolution would change the look. A separate full-resolution export can
-  come later if it rescales effect sizes consistently.
+- **Export is WYSIWYG by default.** Export and batch export render at the
+  same working resolution as the preview (long side ≤ 1,600 px, then scaled
+  by pixel size). Full-size export, added later, is described below.
 - **One dither layer.** Several dither layers rarely make sense (the second
   re-dithers an already-quantised image) and would complicate the palette
   and the style gallery. The format allows revisiting this.

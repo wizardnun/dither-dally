@@ -33,6 +33,8 @@ type Props = Omit<EffectListProps, "onShowStyle"> & {
   palette: PaletteRef;
   onPalette: (ref: PaletteRef) => void;
   onExtract: (count: number) => void;
+  onImportPalette: () => void;
+  onSavePalette: () => void;
   color: ColorSettings;
   onColor: (c: ColorSettings) => void;
   pixelSize: number;
@@ -130,7 +132,13 @@ function StyleTab(p: Props & { layer: DitherLayer }) {
       {algorithm.family === "text" && <TextSection {...p} layer={p.layer} />}
 
       <Section title="Palette">
-        <PalettePicker value={p.palette} onChange={p.onPalette} onExtract={p.onExtract} />
+        <PalettePicker
+          value={p.palette}
+          onChange={p.onPalette}
+          onExtract={p.onExtract}
+          onImport={p.onImportPalette}
+          onSave={p.onSavePalette}
+        />
       </Section>
 
       <Section title="Colour">

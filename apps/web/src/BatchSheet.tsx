@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
-import type { ColorSettings, Layer, RGB } from "@dither-dally/core";
-import { loadImageFile, toImageData } from "./image.ts";
+import { scaleLayers, type ColorSettings, type Layer, type RGB } from "@dither-dally/core";
+import { FULL_MAX_SIDE, MAX_SIDE, loadImageFile, toImageData, workingSize } from "./image.ts";
+import { Segmented } from "./ui.tsx";
 import { createRenderWorker, renderOnce } from "./useDither.ts";
 
 interface Props {
@@ -21,6 +22,7 @@ type WithDirectoryPicker = Window & { showDirectoryPicker?: (o: { mode: "readwri
  */
 export function BatchSheet({ files, job, suffix, onClose, onDone }: Props) {
   const [progress, setProgress] = useState<number | null>(null);
+  const [size, setSize] = useState<"preview" | "full">("preview");
   const cancelled = useRef(false);
   const canPickFolder = typeof (window as WithDirectoryPicker).showDirectoryPicker === "function";
 
@@ -43,9 +45,11 @@ export function BatchSheet({ files, job, suffix, onClose, onDone }: Props) {
         const file = files[i]!;
         try {
           const bitmap = await loadImageFile(file);
-          const source = toImageData(bitmap, job.pixelSize);
+          const source = toImageData(bitmap, job.pixelSize, size === "full" ? FULL_MAX_SIDE : MAX_SIDE);
+          // At full size, distance settings scale with the image so the look keeps its proportions.
+          const layers = size === "full" ? scaleLayers(job.layers, source.width / workingSize(bitmap, job.pixelSize).width) : job.layers;
           bitmap.close();
-          const result = await renderOnce(worker, { ...job, source });
+          const result = await renderOnce(worker, { ...job, layers, source });
           const blob = await toPng(result, job.pixelSize);
           const name = `${file.name.replace(/\.[^.]+$/, "")}-${suffix}.png`;
           if (dir) {
@@ -77,8 +81,25 @@ export function BatchSheet({ files, job, suffix, onClose, onDone }: Props) {
       <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="batch-title">
         <h2 id="batch-title">Batch export</h2>
         <p>
-          Apply the current layers and settings to {files.length} image{files.length === 1 ? "" : "s"}. Each is processed the same way
-          as the preview (long side up to 1,600 px, then scaled by the pixel size) and saved as PNG.
+          Apply the current style, effects and settings to {files.length} image{files.length === 1 ? "" : "s"} and save each as PNG.
+        </p>
+        <div className="row-ctl">
+          <span>Size</span>
+          <Segmented
+            label="Export size"
+            value={size}
+            disabled={running}
+            options={[
+              { value: "preview", label: "As previewed" },
+              { value: "full", label: "Full size" },
+            ]}
+            onChange={setSize}
+          />
+        </div>
+        <p className="hint">
+          {size === "preview"
+            ? "Long side up to 1,600 px, exactly like the preview."
+            : "Each image at its own resolution (long side up to 8,192 px). Finer grain; patterns and effects keep their proportions. Slower."}
         </p>
         <p className="hint">
           {canPickFolder ? "You'll choose a folder to save into." : "Each file downloads separately; your browser may ask to allow multiple downloads."}

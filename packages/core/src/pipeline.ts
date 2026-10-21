@@ -31,6 +31,30 @@ export function runUntilDither(input: PixelBuffer, s: PipelineSettings): PixelBu
   return runPipeline(input, { ...s, layers: at < 0 ? s.layers : s.layers.slice(0, at) });
 }
 
+/**
+ * The same layers for an image `factor` times larger in each direction, so a
+ * full-size render keeps the look of the preview: every distance setting (a
+ * slider with unit "px": cell sizes, line spacing, radii, glitch distances)
+ * is multiplied by `factor`. Whole-pixel settings stay whole, and anything
+ * above zero stays at least 1. Other settings, and the dither grain itself,
+ * are left alone.
+ */
+export function scaleLayers(layers: readonly Layer[], factor: number): Layer[] {
+  if (factor === 1) return [...layers];
+  return layers.map((layer) => {
+    const def = layer.kind === "dither" ? getAlgorithm(layer.algorithm) : getEffect(layer.effect);
+    const params = { ...layer.params };
+    for (const c of def.controls) {
+      if (c.kind !== "slider" || c.unit !== "px") continue;
+      const v = Number(params[c.id] ?? c.default);
+      if (!Number.isFinite(v)) continue;
+      const scaled = v * factor;
+      params[c.id] = Number.isInteger(c.step) ? (v > 0 ? Math.max(1, Math.round(scaled)) : 0) : scaled;
+    }
+    return { ...layer, params } as Layer;
+  });
+}
+
 export function runPipeline(input: PixelBuffer, s: PipelineSettings): PixelBuffer {
   let current = input;
   for (const layer of s.layers) {
